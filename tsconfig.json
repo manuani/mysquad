@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [],
+  "references": [
+    { "path": "./packages/types" },
+    { "path": "./packages/db" },
+    { "path": "./packages/telemetry" },
+    { "path": "./packages/auth-context" },
+    { "path": "./packages/errors" },
+    { "path": "./packages/events" },
+    { "path": "./packages/config" },
+    { "path": "./services/identity" },
+    { "path": "./services/tenancy" },
+    { "path": "./services/meeting" },
+    { "path": "./services/brain" },
+    { "path": "./services/ledger" },
+    { "path": "./services/agent-runtime" },
+    { "path": "./services/routing" },
+    { "path": "./services/performance" },
+    { "path": "./services/marketplace" },
+    { "path": "./services/marketplace-metering" },
+    { "path": "./services/notification" },
+    { "path": "./services/admin-console-api" },
+    { "path": "./apps/api-gateway" }
+  ]
+}

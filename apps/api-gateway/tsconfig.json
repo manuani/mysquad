@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true
+  },
+  "references": [
+    { "path": "../../packages/types" },
+    { "path": "../../packages/config" },
+    { "path": "../../packages/telemetry" },
+    { "path": "../../packages/errors" },
+    { "path": "../../packages/events" },
+    { "path": "../../services/identity" },
+    { "path": "../../services/tenancy" },
+    { "path": "../../services/meeting" },
+    { "path": "../../services/brain" },
+    { "path": "../../services/ledger" },
+    { "path": "../../services/agent-runtime" },
+    { "path": "../../services/routing" },
+    { "path": "../../services/performance" },
+    { "path": "../../services/marketplace" },
+    { "path": "../../services/marketplace-metering" },
+    { "path": "../../services/notification" },
+    { "path": "../../services/admin-console-api" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"]
+}
