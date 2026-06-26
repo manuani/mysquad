@@ -10,6 +10,7 @@ describe('db package contract', () => {
         neo4jUser: 'u',
         neo4jPassword: 'p',
         redisUrl: 'redis://x',
+        objectStoreBucket: 'voai-dev',
       }),
     ).toThrow(/Sprint 1\.1\.2/);
   });

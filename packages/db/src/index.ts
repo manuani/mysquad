@@ -1,20 +1,26 @@
 /**
- * Database clients — Postgres (with pgvector), Neo4j, Redis.
+ * Database clients — Postgres (with pgvector), Neo4j, Redis, object store.
  *
- * The platform uses three stores per Strategic Vision and Architecture:
+ * The platform uses five stores per Strategic Vision and System
+ * Architecture §4.1:
  *   - Postgres (with pgvector) — structured business state and semantic memory
  *   - Neo4j AuraDB — relationship graph
  *   - Redis — hot cache for real-time contradiction checks (P95 < 1s requirement)
+ *   - Object store (S3/GCS-compatible, §4.2.4) — recordings, documents, exports
  *
- * Concrete client wiring (pg.Pool, neo4j-driver, ioredis) lands in Sprint 1.1.2
- * (Local development environment). This file currently exposes the type-level
- * contract so other modules can compile against it.
+ * (Vector storage is pgvector, inside Postgres — not a fifth client.)
+ *
+ * Concrete client wiring (pg.Pool, neo4j-driver, ioredis,
+ * @aws-sdk/client-s3) lands in Sprint 1.1.2 (Local development
+ * environment). This file currently exposes the type-level contract so
+ * other modules can compile against it.
  */
 
 export interface DatabaseClients {
   readonly postgres: PostgresClient;
   readonly neo4j: Neo4jClient;
   readonly redis: RedisClient;
+  readonly objectStore: ObjectStoreClient;
   readonly close: () => Promise<void>;
 }
 
@@ -63,12 +69,43 @@ export interface RedisClient {
   del(key: string): Promise<number>;
 }
 
+/**
+ * S3/GCS-compatible object store (System Architecture §4.2.4) for
+ * recordings, uploaded documents, and async exports (brain JSON, ledger
+ * CSV, brain-summary PDF).
+ *
+ * Keys are tenant-prefixed per §4.2.4: `{tenantId}/{sessionId}/...`. Use
+ * `tenantObjectKey` to build them consistently rather than concatenating
+ * strings at each call site — every key built this way is automatically
+ * scoped to one tenant's prefix, which is what the bucket policy and any
+ * cross-tenant audit tooling key off.
+ */
+export interface ObjectStoreClient {
+  getObject(key: string): Promise<{ body: Uint8Array; contentType: string }>;
+  putObject(key: string, body: Uint8Array | Buffer, contentType: string): Promise<void>;
+  deleteObject(key: string): Promise<void>;
+  presignGetUrl(key: string, expiresInSeconds: number): Promise<string>;
+  presignPutUrl(key: string, expiresInSeconds: number, contentType: string): Promise<string>;
+}
+
+/**
+ * Builds a tenant-prefixed object key: `{tenantId}/{sessionId}/{path}`.
+ * `sessionId` is optional for tenant-scoped artifacts that are not tied to
+ * a single meeting session (e.g. an export or an uploaded onboarding
+ * document) — in that case the key is `{tenantId}/{path}`.
+ */
+export function tenantObjectKey(tenantId: string, path: string, sessionId?: string): string {
+  return sessionId ? `${tenantId}/${sessionId}/${path}` : `${tenantId}/${path}`;
+}
+
 export interface DatabaseConfig {
   readonly databaseUrl: string;
   readonly neo4jUri: string;
   readonly neo4jUser: string;
   readonly neo4jPassword: string;
   readonly redisUrl: string;
+  readonly objectStoreBucket: string;
+  readonly objectStoreEndpoint?: string;
 }
 
 /**
