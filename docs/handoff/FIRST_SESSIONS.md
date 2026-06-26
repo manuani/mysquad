@@ -146,6 +146,7 @@ Once approved:
 ## When to start a new chat vs continue in one
 
 In Claude Code:
+
 - **One Claude Code session per deliverable.** Start a new one (`exit`
   then `claude` again) when moving to a new deliverable.
 - **Long sessions degrade.** If you've been going for an hour and the

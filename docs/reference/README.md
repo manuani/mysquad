@@ -5,15 +5,15 @@ through `CLAUDE.md` references and explicit prompts.
 
 ## What to put here
 
-| Filename | Content |
-|---|---|
-| `System_Architecture.md` | Consolidated System Architecture v2 (the eleven components, data layer, isolation rules) |
-| `UX_Specification.md` | Consolidated UX Specification v2 |
-| `Sprint_Plan.md` | The sprint plan driving the build |
-| `Session_Operating_Manual.md` | How each work session should run |
-| `Platform_Specification.md` | Product capabilities and constraints (v2) |
-| `Strategic_Vision.md` | The why (v4, optional for build sessions) |
-| `Admin_Console_Specification.md` | Admin console capabilities (Phase 7 reference) |
+| Filename                         | Content                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| `System_Architecture.md`         | Consolidated System Architecture v2 (the eleven components, data layer, isolation rules) |
+| `UX_Specification.md`            | Consolidated UX Specification v2                                                         |
+| `Sprint_Plan.md`                 | The sprint plan driving the build                                                        |
+| `Session_Operating_Manual.md`    | How each work session should run                                                         |
+| `Platform_Specification.md`      | Product capabilities and constraints (v2)                                                |
+| `Strategic_Vision.md`            | The why (v4, optional for build sessions)                                                |
+| `Admin_Console_Specification.md` | Admin console capabilities (Phase 7 reference)                                           |
 
 ## Why Markdown
 
@@ -33,6 +33,7 @@ as a safety net. Git handles binary files for low-frequency changes fine.
 ## When the references change
 
 When a new version of an architecture or spec doc lands:
+
 1. Replace the corresponding `.md` file here.
 2. Run a Claude Code session: "Read the new `docs/reference/System_Architecture.md`
    and compare against the current implementation. List any new gaps."

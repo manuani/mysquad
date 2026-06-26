@@ -23,8 +23,11 @@ contract, and shared infrastructure are stable from this skeleton forward.
 
 ```
 voai-platform/
-├── apps/
-│   ├── api-server/         # API server pool (§3.7); modular-monolith boot process. Registers all 11 service modules.
+├── apps/                   # The five §3.7 process types
+│   ├── api-server/         # API server pool; modular-monolith boot process. Registers all 11 service modules.
+│   ├── worker/             # Background worker pool — placeholder, populated when first job lands
+│   ├── media-coordinator/  # Media coordinator pool — placeholder, populated in Phase 2
+│   ├── scheduler/          # Scheduled job runner — placeholder, populated when first cron job lands
 │   ├── founder-mobile/     # React Native — populated in Sprint 1.3.1
 │   └── admin-web/          # Operations console — populated in Phase 7
 ├── services/               # Service modules — one per architecture component

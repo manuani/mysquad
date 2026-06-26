@@ -48,7 +48,9 @@ export function buildTenantContext(fields: {
   if (!userId) throw new MissingTenantContextError('userId');
   if (!sessionId) throw new MissingTenantContextError('sessionId');
   if (userType !== 'founder' && userType !== 'admin' && userType !== 'expert') {
-    throw new MissingTenantContextError(`userType must be founder|admin|expert, got ${String(userType)}`);
+    throw new MissingTenantContextError(
+      `userType must be founder|admin|expert, got ${String(userType)}`,
+    );
   }
   return { tenantId, userId, userType, sessionId };
 }

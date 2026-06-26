@@ -37,8 +37,8 @@ These are load-bearing and easy to violate by accident. Apply them on every PR.
 ### 1. Tenant isolation via explicit context parameters
 
 System Architecture §8.1.1 mandates four defense layers, layer 2 of which says:
-*"The context is propagated through async work via explicit context parameters;
-no implicit globals."*
+_"The context is propagated through async work via explicit context parameters;
+no implicit globals."_
 
 Concrete rules:
 
@@ -90,11 +90,12 @@ are first-class.
 ### 5. Deployment topology has five process types
 
 §3.7: API server pool, background worker pool, media coordinator pool,
-scheduled job runner, admin console. The skeleton currently has only the
-API server entrypoint (`apps/api-server`, renamed from `apps/api-gateway`
-per ADR 009 — not the Edge Gateway from §3.1, which is infra-level). The
-other four are placeholders and get real entrypoints in later phases.
-Don't bundle worker logic into the API server — keep the separation.
+scheduled job runner, admin console. `apps/api-server` (renamed from
+`apps/api-gateway` per ADR 009 — not the Edge Gateway from §3.1, which is
+infra-level) has a real entrypoint. `apps/worker`, `apps/media-coordinator`,
+and `apps/scheduler` are README-only placeholders (Issue 4, resolved) —
+each gets a real entrypoint in the phase its README names. Admin console
+is `apps/admin-web` plus `services/admin-console-api`, populated in Phase 7. Don't bundle worker logic into the API server — keep the separation.
 
 ## Conventions
 
@@ -158,7 +159,7 @@ Per the Session Operating Manual:
 3. **Capture what's unresolved.** Update `VERIFICATION_BACKLOG.md` or open
    a new section in handoff if you discovered gaps.
 4. **Run the checks.** `pnpm run lint && pnpm run typecheck && pnpm run
-   test` before declaring done.
+test` before declaring done.
 
 ## Working style
 
@@ -173,7 +174,7 @@ Per the Session Operating Manual:
 - **No silent guesses.** If you don't know, say you don't know and either
   search the references or ask the user.
 
-## What this repo is *not*
+## What this repo is _not_
 
 - Not a microservices project. Don't propose extraction without §3.8
   triggers.

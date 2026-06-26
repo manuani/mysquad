@@ -37,14 +37,14 @@ contract for all 12 services.
 
 ## Architectural decisions (documented in ADRs)
 
-| ADR | Decision                                                | Status   |
-| --- | ------------------------------------------------------- | -------- |
-| 001 | TypeScript on Node 20 LTS for backend services          | Pending sign-off |
-| 002 | pnpm workspaces + Turborepo for monorepo tooling        | Pending sign-off |
-| 003 | Modular monolith with in-process module registration    | Pending sign-off |
-| 004 | Service module list at v1 skeleton (12 modules)         | Pending sign-off |
-| 005 | Express for HTTP routing at v1                          | Pending sign-off |
-| 006 | Tenant context via AsyncLocalStorage                    | Pending sign-off |
+| ADR | Decision                                             | Status           |
+| --- | ---------------------------------------------------- | ---------------- |
+| 001 | TypeScript on Node 20 LTS for backend services       | Pending sign-off |
+| 002 | pnpm workspaces + Turborepo for monorepo tooling     | Pending sign-off |
+| 003 | Modular monolith with in-process module registration | Pending sign-off |
+| 004 | Service module list at v1 skeleton (12 modules)      | Pending sign-off |
+| 005 | Express for HTTP routing at v1                       | Pending sign-off |
+| 006 | Tenant context via AsyncLocalStorage                 | Pending sign-off |
 
 Each ADR is in standard format (Context / Options / Decision / Rationale /
 Consequences / Revisit triggers). Disagreement is best raised at the ADR
@@ -53,13 +53,13 @@ whole.
 
 ## Definition of Done — status
 
-| Criterion                                          | Status |
-| -------------------------------------------------- | ------ |
-| Repository pushed to git host                      | **Open** — needs git init and your remote URL |
-| CI building successfully                           | Met (verified locally; CI runs same commands) |
-| README explaining structure                        | Met |
-| Lead engineer signs off on structure               | **Open** — pending review |
-| All team members can clone and build               | **Open** — pending team try-out |
+| Criterion                            | Status                                        |
+| ------------------------------------ | --------------------------------------------- |
+| Repository pushed to git host        | **Open** — needs git init and your remote URL |
+| CI building successfully             | Met (verified locally; CI runs same commands) |
+| README explaining structure          | Met                                           |
+| Lead engineer signs off on structure | **Open** — pending review                     |
+| All team members can clone and build | **Open** — pending team try-out               |
 
 ## Known gaps and next sessions
 
@@ -86,6 +86,7 @@ whole.
 
 I am not the lead engineer. The structure above is a high-quality first
 pass. Your team:
+
 - Reviews it for fit with broader codebase patterns I do not know.
 - Hardens it for production (DB wiring, observability, error handling
   beyond the typed hierarchy).

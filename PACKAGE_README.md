@@ -57,7 +57,7 @@ Three things, in order:
    session operating manual, platform spec, and (optional) strategic
    vision. Conversion guidance is in `docs/reference/README.md`.
 2. **Your git remote**. `git init && git add . && git commit && git
-   remote add origin <url> && git push -u origin main`.
+remote add origin <url> && git push -u origin main`.
 3. **Your Anthropic API key for Claude Code** — set up during the Claude
    Code install (one-time).
 

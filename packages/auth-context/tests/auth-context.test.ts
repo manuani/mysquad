@@ -21,15 +21,11 @@ describe('auth-context', () => {
   });
 
   it('throws MissingTenantContextError when userId is missing', () => {
-    expect(() => buildTenantContext({ ...sampleFields, userId: undefined })).toThrow(
-      /userId/,
-    );
+    expect(() => buildTenantContext({ ...sampleFields, userId: undefined })).toThrow(/userId/);
   });
 
   it('throws MissingTenantContextError when sessionId is missing', () => {
-    expect(() => buildTenantContext({ ...sampleFields, sessionId: null })).toThrow(
-      /sessionId/,
-    );
+    expect(() => buildTenantContext({ ...sampleFields, sessionId: null })).toThrow(/sessionId/);
   });
 
   it('throws MissingTenantContextError when userType is invalid', () => {

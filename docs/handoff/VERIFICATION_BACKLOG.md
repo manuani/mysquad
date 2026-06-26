@@ -20,6 +20,7 @@ skeleton has two separate workspaces (`services/identity` and
 `services/tenancy`).
 
 **Fix:**
+
 1. Merge `services/tenancy` into `services/identity`, rename to
    `services/identity-and-tenancy` (or just `identity` keeping the broader
    scope clear in its README).
@@ -44,6 +45,7 @@ request routing, WebRTC signalling negotiation. This is infrastructure
 the edge gateway.
 
 **Fix options:**
+
 - **(a) Rename** `apps/api-gateway/` to `apps/api-server/`. Add
   `infra/edge-gateway/` for the load-balancer/WAF config when Sprint 1.1.3
   lands.
@@ -65,6 +67,7 @@ Redis, **object store** (S3/GCS, per §4.2.4). The current
 `packages/db/src/index.ts` exposes only the first four.
 
 **Fix:**
+
 1. Add `ObjectStoreClient` interface to `packages/db/src/index.ts`. Surface:
    `getObject(key)`, `putObject(key, body, contentType)`,
    `deleteObject(key)`, `presignGetUrl(key, expiresIn)`,
@@ -79,17 +82,17 @@ Redis, **object store** (S3/GCS, per §4.2.4). The current
 
 **Severity:** Low at v1; rising over time
 **Blocks:** Phase 2+ work
-**Status:** Open (architectural intent)
+**Status:** Resolved (placeholders added) — real entrypoints still land per-phase as designed
 
-§3.7 specifies five process types. The skeleton has only the API server.
+§3.7 specifies five process types.
 
-| Process type | Skeleton location | Status |
-|---|---|---|
-| API server pool | `apps/api-gateway` | Present |
-| Background worker pool | `apps/worker` | **Missing** |
-| Media coordinator pool | `apps/media-coordinator` | **Missing** |
-| Scheduled job runner | `apps/scheduler` | **Missing** |
-| Admin console (separate web app) | `apps/admin-web` | Placeholder README only |
+| Process type                     | Skeleton location        | Status                  |
+| -------------------------------- | ------------------------ | ----------------------- |
+| API server pool                  | `apps/api-server`        | Present                 |
+| Background worker pool           | `apps/worker`            | Placeholder README only |
+| Media coordinator pool           | `apps/media-coordinator` | Placeholder README only |
+| Scheduled job runner             | `apps/scheduler`         | Placeholder README only |
+| Admin console (separate web app) | `apps/admin-web`         | Placeholder README only |
 
 **Fix:**
 Add `apps/worker/`, `apps/media-coordinator/`, `apps/scheduler/` as
@@ -105,16 +108,17 @@ that work starts (Phase 2).
 **Blocks:** Sprint 1.2.2 (Tenant model and enforcement)
 **Status:** Resolved — see ADR 007
 
-§8.1.1 layer 2 mandates: *"The context is propagated through async work via
-**explicit context parameters; no implicit globals**."* §3.6 confirms:
-*"There is no overload that accepts a query without tenantId; cross-tenant
-queries are not expressible in the codebase."*
+§8.1.1 layer 2 mandates: _"The context is propagated through async work via
+**explicit context parameters; no implicit globals**."_ §3.6 confirms:
+_"There is no overload that accepts a query without tenantId; cross-tenant
+queries are not expressible in the codebase."_
 
 ADR 006 chose `AsyncLocalStorage`. That's exactly the implicit-globals
 pattern the architecture forbids. Worse, `ModuleContext` doesn't carry
 tenantId at the signature level — it relies on the implicit context.
 
 **Fix:**
+
 1. Write ADR 007 superseding ADR 006. New decision: explicit `TenantContext`
    value type threaded as the first parameter on every internal API.
 2. Replace `packages/auth-context/src/index.ts` AsyncLocalStorage with a
@@ -144,14 +148,15 @@ means rewriting Identity-and-Tenancy.
 **Blocks:** Sprint 1.1.2 (Local development environment) wiring
 **Status:** Resolved — see packages/db/README.md
 
-§8.1.1 layer 3 mandates: *"the database connection acquired for a request
-has its session-level `app.tenant_id` setting set immediately."*
+§8.1.1 layer 3 mandates: _"the database connection acquired for a request
+has its session-level `app.tenant_id` setting set immediately."_
 
 The current `PostgresClient` interface is just a `query` method — no
 concept of acquiring a tenant-scoped connection. This means layer 3
 enforcement is impossible without bypassing the interface.
 
 **Fix:**
+
 1. Replace the `query` method with:
    ```ts
    withTenant<T>(tenantId: string, fn: (client: TenantScopedClient) => Promise<T>): Promise<T>;
@@ -167,6 +172,7 @@ enforcement is impossible without bypassing the interface.
 ## Working through the backlog
 
 Recommended order:
+
 1. **Issue 5 first** — blocks everything else by setting precedent.
 2. **Issue 6** — pairs with Issue 5 (same architectural concern); fix
    together.
@@ -176,5 +182,5 @@ Recommended order:
 6. **Issue 4** — placeholder workspaces.
 
 All six can fit in a single corrective session before Sprint 1.1.2 starts.
-Suggested session title: *"Sync corrections to Deliverable 1.1.1 from
-consolidated System Architecture v2."*
+Suggested session title: _"Sync corrections to Deliverable 1.1.1 from
+consolidated System Architecture v2."_
