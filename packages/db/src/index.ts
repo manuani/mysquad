@@ -10,11 +10,17 @@
  *
  * (Vector storage is pgvector, inside Postgres — not a fifth client.)
  *
- * Concrete client wiring (pg.Pool, neo4j-driver, ioredis,
- * @aws-sdk/client-s3) lands in Sprint 1.1.2 (Local development
- * environment). This file currently exposes the type-level contract so
- * other modules can compile against it.
+ * Concrete client wiring is `pg.Pool`, `neo4j-driver`, `ioredis`, and
+ * `@aws-sdk/client-s3` (Deliverable 1.1.2 / local dev environment). The
+ * type-level contract below is what other modules compile against;
+ * `createDatabaseClients` at the bottom of this file is the only place
+ * that constructs the real clients.
  */
+
+import { createNeo4jClient } from './neo4j.js';
+import { createObjectStoreClient } from './object-store.js';
+import { createPostgresClient } from './postgres.js';
+import { createRedisClient } from './redis.js';
 
 export interface DatabaseClients {
   readonly postgres: PostgresClient;
@@ -105,12 +111,37 @@ export interface DatabaseConfig {
   readonly neo4jPassword: string;
   readonly redisUrl: string;
   readonly objectStoreBucket: string;
+  /** S3-compatible endpoint (MinIO locally). Omit for real AWS S3. */
   readonly objectStoreEndpoint?: string;
+  readonly objectStoreAccessKeyId?: string;
+  readonly objectStoreSecretAccessKey?: string;
+  readonly objectStoreRegion?: string;
 }
 
 /**
- * Construct database clients. v1 implementation TBD in Sprint 1.1.2.
+ * Construct the real database clients for a process. Called once at
+ * platform boot (`apps/api-server`) and once per test/seed script that
+ * needs a live connection — never per-request.
  */
-export function createDatabaseClients(_config: DatabaseConfig): DatabaseClients {
-  throw new Error('Not yet implemented — see Sprint 1.1.2');
+export function createDatabaseClients(config: DatabaseConfig): DatabaseClients {
+  const postgres = createPostgresClient(config.databaseUrl);
+  const neo4jClients = createNeo4jClient(config.neo4jUri, config.neo4jUser, config.neo4jPassword);
+  const redis = createRedisClient(config.redisUrl);
+  const objectStore = createObjectStoreClient({
+    bucket: config.objectStoreBucket,
+    endpoint: config.objectStoreEndpoint,
+    accessKeyId: config.objectStoreAccessKeyId,
+    secretAccessKey: config.objectStoreSecretAccessKey,
+    region: config.objectStoreRegion,
+  });
+
+  return {
+    postgres: postgres.client,
+    neo4j: neo4jClients.client,
+    redis: redis.client,
+    objectStore,
+    close: async () => {
+      await Promise.all([postgres.close(), neo4jClients.close(), redis.close()]);
+    },
+  };
 }

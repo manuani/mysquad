@@ -9,6 +9,7 @@ describe('loadConfig', () => {
     NEO4J_USER: 'neo4j',
     NEO4J_PASSWORD: 'secret',
     REDIS_URL: 'redis://localhost:6379',
+    OBJECT_STORE_BUCKET: 'voai-dev',
   };
 
   it('parses a valid environment', () => {

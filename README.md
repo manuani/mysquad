@@ -49,10 +49,10 @@ voai-platform/
 │   ├── auth-context/       # Tenant and user context propagation via AsyncLocalStorage
 │   ├── errors/             # Typed error hierarchy mapped to HTTP responses
 │   ├── events/             # Internal event bus (in-process at v1; Postgres LISTEN/NOTIFY later)
-│   └── db/                 # Postgres + Neo4j + Redis client factories — wired in Sprint 1.1.2
+│   └── db/                 # Postgres + Neo4j + Redis + object store client factories (wired)
 ├── infra/
-│   ├── terraform/          # IaC for staging and production — populated in Sprint 1.1.3
-│   └── docker/             # Docker Compose for local dev — populated in Sprint 1.1.2
+│   ├── docker/             # Local dev stack: Postgres+pgvector, Neo4j, Redis, MinIO (populated)
+│   └── terraform/          # IaC for staging and production — populated in Sprint 1.1.3
 ├── evals/                  # Evaluation harness — populated in Sprint 5.3
 ├── docs/
 │   └── adr/                # Architecture Decision Records (see docs/adr/README.md)
@@ -108,14 +108,18 @@ pnpm run format       # prettier --write everywhere
 ### Running the platform locally
 
 ```bash
-cp .env.example .env.local
-# Fill in DATABASE_URL, NEO4J_URI, etc.
+pnpm run docker:up       # Postgres+pgvector, Neo4j, Redis, MinIO
+cp .env.example .env.local   # defaults already match docker-compose
+set -a && source .env.local && set +a
+pnpm run db:migrate
+pnpm run db:seed         # test tenant + confirms RLS blocks cross-tenant reads
 pnpm run build
 node apps/api-server/dist/index.js
 ```
 
-Note: end-to-end local boot needs Postgres, Neo4j, and Redis running. Sprint
-1.1.2 lands the Docker Compose setup that brings those up automatically.
+See `infra/README.md` for the full quickstart, including why migrations
+and the running application connect as two different Postgres roles
+(`docs/adr/010-local-dev-database-stack.md`).
 
 ## Naming conventions
 
@@ -135,11 +139,10 @@ rationale is there. New decisions get a new ADR with the next number.
 
 ## What's intentionally not here yet
 
-- Database wiring (Sprint 1.1.2)
-- Local Docker Compose (Sprint 1.1.2)
 - Staging deployment (Sprint 1.1.3)
 - Mobile app (Sprint 1.3.1)
 - Admin web app (Phase 7)
-- Real handlers in any service (filled by their owning sprints)
+- Real handlers in any service (filled by their owning sprints — Wave 1:
+  identity-and-tenancy, brain, ledger)
 
 The structure above accommodates each of these without restructuring.

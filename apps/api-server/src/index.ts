@@ -24,6 +24,7 @@
 
 import express from 'express';
 import { loadConfig } from '@voai/config';
+import { createDatabaseClients } from '@voai/db';
 import { createLogger } from '@voai/telemetry';
 import { createInProcessEventBus } from '@voai/events';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
@@ -79,17 +80,24 @@ async function main(): Promise<void> {
 
   const events = createInProcessEventBus();
 
-  // Database clients are wired in Sprint 1.1.2; pass undefined-shaped placeholder
-  // so modules can compile and CI can verify the registration pipeline.
+  const db = createDatabaseClients({
+    databaseUrl: config.databaseUrl,
+    neo4jUri: config.neo4jUri,
+    neo4jUser: config.neo4jUser,
+    neo4jPassword: config.neo4jPassword,
+    redisUrl: config.redisUrl,
+    objectStoreBucket: config.objectStoreBucket,
+    objectStoreEndpoint: config.objectStoreEndpoint,
+    objectStoreAccessKeyId: config.objectStoreAccessKeyId,
+    objectStoreSecretAccessKey: config.objectStoreSecretAccessKey,
+    objectStoreRegion: config.objectStoreRegion,
+  });
+
   const ctx: ModuleContext = {
     config,
     logger,
     events,
-    db: {
-      postgres: null,
-      neo4j: null,
-      redis: null,
-    },
+    db,
   };
 
   const app = express();
@@ -124,6 +132,9 @@ async function main(): Promise<void> {
         logger.error('module shutdown failed', { module: h.name, err: String(err) });
       }
     }
+    await db.close().catch((err: unknown) => {
+      logger.error('database client shutdown failed', { err: String(err) });
+    });
     process.exit(0);
   };
 

@@ -80,9 +80,10 @@ export interface Logger {
 }
 
 export interface DatabaseClients {
-  readonly postgres: unknown; // pg.Pool — typed concretely in @voai/db
-  readonly neo4j: unknown; // neo4j.Driver — typed concretely in @voai/db
-  readonly redis: unknown; // ioredis.Redis — typed concretely in @voai/db
+  readonly postgres: unknown; // PostgresClient (withTenant) — typed concretely in @voai/db
+  readonly neo4j: unknown; // Neo4jClient — typed concretely in @voai/db
+  readonly redis: unknown; // RedisClient — typed concretely in @voai/db
+  readonly objectStore: unknown; // ObjectStoreClient — typed concretely in @voai/db
 }
 
 export interface EventBus {

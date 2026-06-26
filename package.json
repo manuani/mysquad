@@ -19,7 +19,13 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "clean": "turbo run clean && rm -rf node_modules",
-    "prepare": "husky install || true"
+    "prepare": "husky install || true",
+    "docker:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
+    "db:migrate": "pnpm --filter @voai/db run migrate:up",
+    "db:migrate:down": "pnpm --filter @voai/db run migrate:down",
+    "db:seed": "pnpm --filter @voai/db run seed"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

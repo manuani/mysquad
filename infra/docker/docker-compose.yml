@@ -1,0 +1,85 @@
+name: voai-platform
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: voai
+      POSTGRES_PASSWORD: voai
+      POSTGRES_DB: voai_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - voai_postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U voai -d voai_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/voai-dev-password
+      NEO4J_PLUGINS: '[]'
+    ports:
+      - '7474:7474' # HTTP browser
+      - '7687:7687' # Bolt
+    volumes:
+      - voai_neo4j_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -O /dev/null -q http://localhost:7474 || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: voai
+      MINIO_ROOT_PASSWORD: voai-dev-password
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # Console
+    volumes:
+      - voai_minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot job: creates the dev bucket on first boot. MinIO has no
+  # equivalent of Postgres's docker-entrypoint-initdb.d, so this runs the
+  # mc client against the minio service instead.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 voai voai-dev-password &&
+      mc mb --ignore-existing local/voai-dev
+      "
+
+volumes:
+  voai_postgres_data:
+  voai_neo4j_data:
+  voai_minio_data:

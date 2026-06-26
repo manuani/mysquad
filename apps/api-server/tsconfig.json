@@ -8,6 +8,7 @@
   "references": [
     { "path": "../../packages/types" },
     { "path": "../../packages/config" },
+    { "path": "../../packages/db" },
     { "path": "../../packages/telemetry" },
     { "path": "../../packages/errors" },
     { "path": "../../packages/events" },

@@ -17,6 +17,7 @@
   "dependencies": {
     "@voai/types": "workspace:*",
     "@voai/config": "workspace:*",
+    "@voai/db": "workspace:*",
     "@voai/telemetry": "workspace:*",
     "@voai/errors": "workspace:*",
     "@voai/events": "workspace:*",

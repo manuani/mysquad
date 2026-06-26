@@ -25,6 +25,13 @@ const PlatformConfigSchema = z.object({
   neo4jPassword: z.string().min(1),
   redisUrl: z.string().url(),
 
+  // Object store (S3/GCS-compatible; MinIO locally) — Sprint 1.1.2
+  objectStoreBucket: z.string().min(1),
+  objectStoreEndpoint: z.string().optional(),
+  objectStoreAccessKeyId: z.string().optional(),
+  objectStoreSecretAccessKey: z.string().optional(),
+  objectStoreRegion: z.string().optional(),
+
   // Identity (Sprint 1.2)
   workosApiKey: z.string().optional(),
   workosClientId: z.string().optional(),
@@ -54,6 +61,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PlatformConfig
     neo4jUser: env.NEO4J_USER,
     neo4jPassword: env.NEO4J_PASSWORD,
     redisUrl: env.REDIS_URL,
+    objectStoreBucket: env.OBJECT_STORE_BUCKET,
+    objectStoreEndpoint: env.OBJECT_STORE_ENDPOINT,
+    objectStoreAccessKeyId: env.OBJECT_STORE_ACCESS_KEY_ID,
+    objectStoreSecretAccessKey: env.OBJECT_STORE_SECRET_ACCESS_KEY,
+    objectStoreRegion: env.OBJECT_STORE_REGION,
     workosApiKey: env.WORKOS_API_KEY,
     workosClientId: env.WORKOS_CLIENT_ID,
     anthropicApiKey: env.ANTHROPIC_API_KEY,

@@ -82,10 +82,12 @@ Console.
 
 ### 4. The five data stores
 
-§4.1: Postgres (with pgvector), vector store (pgvector or Pinecone), Neo4j,
-Redis, object store (S3/GCS). The current `@voai/db` is missing the object
-store interface — Issue 3. When you wire databases in Sprint 1.1.2, all five
-are first-class.
+§4.1: Postgres (with pgvector), vector store (pgvector), Neo4j, Redis,
+object store (S3/GCS, MinIO locally). All five are wired in `@voai/db`
+(Deliverable 1.1.2; Issue 3 resolved). `pnpm run docker:up` brings up the
+local stack. Postgres connections for the running app use the `voai_app`
+role, never the migration superuser — see ADR 010 for why that split is
+load-bearing, not cosmetic.
 
 ### 5. Deployment topology has five process types
 
