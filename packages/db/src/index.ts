@@ -18,8 +18,31 @@ export interface DatabaseClients {
   readonly close: () => Promise<void>;
 }
 
+/**
+ * Postgres access is only available inside `withTenant`. There is no raw
+ * `query` method on `PostgresClient` — per System Architecture §8.1.1 layer
+ * 3, the database connection acquired for a request must have its
+ * session-level `app.tenant_id` setting applied immediately on acquisition,
+ * before any query runs. Exposing a bare `query` method would make it
+ * possible to issue a query against a connection that never had
+ * `app.tenant_id` set, which is exactly the bypass layer 3 exists to close
+ * (verification backlog Issue 6).
+ *
+ * `withTenant` acquires a pool connection, runs `SET LOCAL app.tenant_id =
+ * $1`, runs `fn` with a `TenantScopedClient` bound to that connection, then
+ * releases the connection — `SET LOCAL` is transaction-scoped so the setting
+ * never leaks to the next connection borrower.
+ */
 export interface PostgresClient {
-  // pg.Pool surface — pinned in Sprint 1.1.2
+  withTenant<T>(tenantId: string, fn: (client: TenantScopedClient) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Only obtainable inside a `withTenant` callback. Row-level security
+ * policies (layer 4) read `current_setting('app.tenant_id')`, which this
+ * client's underlying connection has set for the duration of the callback.
+ */
+export interface TenantScopedClient {
   query<T = unknown>(text: string, params?: unknown[]): Promise<{ rows: T[] }>;
 }
 
