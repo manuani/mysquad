@@ -91,9 +91,10 @@ are first-class.
 
 §3.7: API server pool, background worker pool, media coordinator pool,
 scheduled job runner, admin console. The skeleton currently has only the
-API server entrypoint (`apps/api-gateway`). The other four are placeholders
-and get real entrypoints in later phases. Don't bundle worker logic into the
-API server — keep the separation.
+API server entrypoint (`apps/api-server`, renamed from `apps/api-gateway`
+per ADR 009 — not the Edge Gateway from §3.1, which is infra-level). The
+other four are placeholders and get real entrypoints in later phases.
+Don't bundle worker logic into the API server — keep the separation.
 
 ## Conventions
 

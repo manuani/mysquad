@@ -42,7 +42,7 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)
 
-  apps/api-gateway:
+  apps/api-server:
     dependencies:
       '@voai/admin-console-api':
         specifier: workspace:*

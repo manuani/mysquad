@@ -24,7 +24,7 @@ contract, and shared infrastructure are stable from this skeleton forward.
 ```
 voai-platform/
 ├── apps/
-│   ├── api-gateway/        # Modular-monolith boot process. Registers all 11 service modules.
+│   ├── api-server/         # API server pool (§3.7); modular-monolith boot process. Registers all 11 service modules.
 │   ├── founder-mobile/     # React Native — populated in Sprint 1.3.1
 │   └── admin-web/          # Operations console — populated in Phase 7
 ├── services/               # Service modules — one per architecture component
@@ -67,13 +67,13 @@ export interface ModuleDefinition {
 }
 ```
 
-The API gateway calls `register()` on each module in dependency order, mounts
+The API server calls `register()` on each module in dependency order, mounts
 the returned router at `/v1/<module-name>`, and aggregates per-module health
 into a top-level `/healthz` endpoint. Modules talk to each other through their
 typed service exports — never by reaching into another module's internals.
 
 The full contract is in `packages/types/src/module.ts`. The smoke test in
-`apps/api-gateway/tests/registration.test.ts` exercises it for every module.
+`apps/api-server/tests/registration.test.ts` exercises it for every module.
 
 ## Getting started
 
@@ -108,7 +108,7 @@ pnpm run format       # prettier --write everywhere
 cp .env.example .env.local
 # Fill in DATABASE_URL, NEO4J_URI, etc.
 pnpm run build
-node apps/api-gateway/dist/index.js
+node apps/api-server/dist/index.js
 ```
 
 Note: end-to-end local boot needs Postgres, Neo4j, and Redis running. Sprint

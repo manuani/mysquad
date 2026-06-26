@@ -20,6 +20,6 @@
     { "path": "./services/marketplace-metering" },
     { "path": "./services/notification" },
     { "path": "./services/admin-console-api" },
-    { "path": "./apps/api-gateway" }
+    { "path": "./apps/api-server" }
   ]
 }

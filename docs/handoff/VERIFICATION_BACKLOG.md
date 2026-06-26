@@ -35,7 +35,7 @@ skeleton has two separate workspaces (`services/identity` and
 
 **Severity:** Low
 **Blocks:** Sprint 1.1.3 (Staging deployment pipeline)
-**Status:** Open
+**Status:** Resolved — see ADR 009
 
 §3.1 names "Edge gateway" as a component — TLS termination, rate limiting,
 request routing, WebRTC signalling negotiation. This is infrastructure
@@ -58,7 +58,7 @@ Recommend (a) — more honest and avoids the term collision.
 
 **Severity:** Medium
 **Blocks:** Sprint 1.1.2 (Local development environment)
-**Status:** Open
+**Status:** Resolved — see packages/db/src/index.ts
 
 §4.1 names five stores: Postgres (with pgvector), vector store, Neo4j,
 Redis, **object store** (S3/GCS, per §4.2.4). The current

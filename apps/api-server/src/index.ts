@@ -1,7 +1,14 @@
 /**
- * API Gateway — boot process for the VirtualOffice AI modular monolith.
+ * API Server — the API server pool (System Architecture §3.7), boot
+ * process for the VirtualOffice AI modular monolith.
  *
- * One Node process runs all service modules. The gateway:
+ * This is not the Edge Gateway from §3.1 (TLS termination, rate limiting,
+ * WebRTC signalling negotiation) — that is infrastructure (CDN, load
+ * balancer, WAF), populated in `infra/` during Sprint 1.1.3. This app was
+ * originally named `api-gateway`, which collided with that term; renamed
+ * per verification backlog Issue 2 (see docs/adr/009-rename-api-gateway.md).
+ *
+ * One Node process runs all service modules. The server:
  *   1. Loads platform config from environment.
  *   2. Initialises shared infrastructure (logger, db clients, event bus).
  *   3. Registers each service module in dependency order.
@@ -65,7 +72,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger({
     level: config.logLevel,
-    service: 'api-gateway',
+    service: 'api-server',
     bindings: { env: config.env, region: config.region },
   });
   logger.info('platform booting', { moduleCount: MODULES.length });
