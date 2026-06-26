@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type AuthContext,
-  currentAuthContext,
-  requireAuthContext,
-  withAuthContext,
-} from '../src/index.js';
+import { buildTenantContext, MissingTenantContextError, type TenantContext } from '../src/index.js';
 
-const sampleCtx: AuthContext = {
+const sampleFields = {
   tenantId: 'tenant_123',
   userId: 'user_456',
   userType: 'founder',
@@ -14,29 +9,39 @@ const sampleCtx: AuthContext = {
 };
 
 describe('auth-context', () => {
-  it('makes the context available inside withAuthContext', () => {
-    const result = withAuthContext(sampleCtx, () => currentAuthContext());
-    expect(result).toEqual(sampleCtx);
+  it('builds a TenantContext from valid fields', () => {
+    const ctx: TenantContext = buildTenantContext(sampleFields);
+    expect(ctx).toEqual(sampleFields);
   });
 
-  it('returns undefined outside any withAuthContext block', () => {
-    expect(currentAuthContext()).toBeUndefined();
+  it('throws MissingTenantContextError when tenantId is missing', () => {
+    expect(() => buildTenantContext({ ...sampleFields, tenantId: null })).toThrow(
+      MissingTenantContextError,
+    );
   });
 
-  it('requireAuthContext throws when no context is set', () => {
-    expect(() => requireAuthContext()).toThrow(/No auth context/);
+  it('throws MissingTenantContextError when userId is missing', () => {
+    expect(() => buildTenantContext({ ...sampleFields, userId: undefined })).toThrow(
+      /userId/,
+    );
   });
 
-  it('requireAuthContext returns the context when set', () => {
-    const result = withAuthContext(sampleCtx, () => requireAuthContext());
-    expect(result.tenantId).toBe('tenant_123');
+  it('throws MissingTenantContextError when sessionId is missing', () => {
+    expect(() => buildTenantContext({ ...sampleFields, sessionId: null })).toThrow(
+      /sessionId/,
+    );
   });
 
-  it('propagates context across async boundaries', async () => {
-    const result = await withAuthContext(sampleCtx, async () => {
-      await Promise.resolve();
-      return currentAuthContext();
-    });
-    expect(result?.tenantId).toBe('tenant_123');
+  it('throws MissingTenantContextError when userType is invalid', () => {
+    expect(() => buildTenantContext({ ...sampleFields, userType: 'superadmin' })).toThrow(
+      /userType/,
+    );
+  });
+
+  it('is a plain explicit value — no ambient state between calls', () => {
+    const ctxA = buildTenantContext(sampleFields);
+    const ctxB = buildTenantContext({ ...sampleFields, tenantId: 'tenant_other' });
+    expect(ctxA.tenantId).toBe('tenant_123');
+    expect(ctxB.tenantId).toBe('tenant_other');
   });
 });

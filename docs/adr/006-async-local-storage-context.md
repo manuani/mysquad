@@ -1,6 +1,7 @@
 # ADR 006: Tenant and user context propagation via AsyncLocalStorage
 
-- Status: Accepted
+- Status: Superseded by ADR 007 — violated System Architecture §8.1.1's
+  explicit-context-parameters mandate (verification backlog Issue 5)
 - Date: 2026-05-03
 - Deciders: founder, lead engineer (pending sign-off)
 

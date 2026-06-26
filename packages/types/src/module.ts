@@ -7,6 +7,15 @@
  * service exports — never by reaching into another module's internals.
  *
  * This file is the source of truth for that contract.
+ *
+ * Tenant isolation (System Architecture §8.1.1, ADR 007): any function —
+ * exported for cross-module calls or internal to a module — that touches
+ * tenant-scoped data takes `tenantContext: TenantContext` (from
+ * `@voai/auth-context`) as its first parameter. There is no ambient context
+ * to read instead; a missing parameter is a compile error, not a runtime
+ * leak. `ModuleContext` below carries only process-wide infrastructure
+ * (config, logger, db, events) — it deliberately does not carry tenant
+ * identity, because tenant identity is per-call, not per-process.
  */
 
 import type { Router } from 'express';
