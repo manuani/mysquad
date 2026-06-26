@@ -24,12 +24,11 @@ contract, and shared infrastructure are stable from this skeleton forward.
 ```
 voai-platform/
 ├── apps/
-│   ├── api-gateway/        # Modular-monolith boot process. Registers all 12 service modules.
+│   ├── api-gateway/        # Modular-monolith boot process. Registers all 11 service modules.
 │   ├── founder-mobile/     # React Native — populated in Sprint 1.3.1
 │   └── admin-web/          # Operations console — populated in Phase 7
 ├── services/               # Service modules — one per architecture component
-│   ├── identity/           # WorkOS auth (Sprint 1.2)
-│   ├── tenancy/            # Multi-tenant isolation (Sprint 1.2.2)
+│   ├── identity-and-tenancy/ # WorkOS auth + multi-tenant isolation (Sprint 1.2, 1.2.2)
 │   ├── meeting/            # Meeting lifecycle and real-time pipeline (Phase 2)
 │   ├── brain/              # Eight knowledge domains, three storage modes (Phase 3)
 │   ├── ledger/             # Decisions, actions, conflicts (Phase 3)

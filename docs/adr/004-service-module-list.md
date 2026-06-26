@@ -1,6 +1,7 @@
 # ADR 004: Service module list at v1 skeleton
 
-- Status: Accepted
+- Status: Superseded by ADR 008 — Identity and Tenancy merged into one
+  module (verification backlog Issue 1)
 - Date: 2026-05-03
 - Deciders: founder, lead engineer (pending sign-off)
 

@@ -1,8 +1,8 @@
 {
-  "name": "@voai/identity",
+  "name": "@voai/identity-and-tenancy",
   "version": "0.0.0",
   "private": true,
-  "description": "Identity Service — WorkOS integration, sign-in (Apple/Google/Microsoft/email magic-link), session tokens",
+  "description": "Identity and Tenancy Service — WorkOS integration, sign-in (Apple/Google/Microsoft/email magic-link), session tokens, tenant model, row-level security, cross-tenant isolation enforcement",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

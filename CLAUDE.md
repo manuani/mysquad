@@ -10,7 +10,7 @@ deliverable Claude Code is building. Founder is the product visionary; a real
 engineering team productionizes Claude Code's output.
 
 The architecture is a **modular monolith** in TypeScript: one Node process boots,
-registers ~12 service modules, serves all platform traffic. Scaling is by
+registers 11 service modules, serves all platform traffic. Scaling is by
 replication, not module extraction.
 
 ## Reference documents
@@ -70,9 +70,9 @@ Concrete rules:
 ### 3. The eleven components
 
 Per System Architecture §3.1 the platform has eleven major components plus
-client surfaces. The skeleton currently has twelve `services/*` modules
-because it incorrectly split Identity-and-Tenancy into two. Treat them as
-**one component** in any new design discussion (tracked as Issue 1).
+client surfaces. `services/identity-and-tenancy` merges what was
+originally split as two modules (Issue 1, resolved — see ADR 008). The
+`services/*` directory now has eleven modules, one per component.
 
 The full list: Identity-and-Tenancy, Edge Gateway (infra-level, not in
 `services/`), Meeting Coordinator, Agent Runtime, Routing Service,

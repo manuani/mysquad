@@ -21,8 +21,7 @@ import { createLogger } from '@voai/telemetry';
 import { createInProcessEventBus } from '@voai/events';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 
-import identityModule from '@voai/identity';
-import tenancyModule from '@voai/tenancy';
+import identityAndTenancyModule from '@voai/identity-and-tenancy';
 import meetingModule from '@voai/meeting';
 import brainModule from '@voai/brain';
 import ledgerModule from '@voai/ledger';
@@ -41,8 +40,7 @@ import adminConsoleApiModule from '@voai/admin-console-api';
  */
 const MODULES: ModuleDefinition[] = [
   // Foundation layer — no module dependencies
-  identityModule,
-  tenancyModule,
+  identityAndTenancyModule,
   // Knowledge and decision layer
   brainModule,
   ledgerModule,

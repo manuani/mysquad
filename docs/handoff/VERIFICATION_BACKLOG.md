@@ -12,7 +12,7 @@ if it isn't resolved.
 
 **Severity:** Medium
 **Blocks:** Sprint 1.2 (Identity and authentication)
-**Status:** Open
+**Status:** Resolved — see ADR 008
 
 System Architecture §3.1 lists eleven components; "Identity and Tenancy"
 is treated as **one component** in §3.4.1, §3.5, and §8.1.1. The current
@@ -103,7 +103,7 @@ that work starts (Phase 2).
 
 **Severity:** High
 **Blocks:** Sprint 1.2.2 (Tenant model and enforcement)
-**Status:** Open — must fix before Sprint 1.2 builds on the wrong pattern
+**Status:** Resolved — see ADR 007
 
 §8.1.1 layer 2 mandates: *"The context is propagated through async work via
 **explicit context parameters; no implicit globals**."* §3.6 confirms:
@@ -142,7 +142,7 @@ means rewriting Identity-and-Tenancy.
 
 **Severity:** Medium
 **Blocks:** Sprint 1.1.2 (Local development environment) wiring
-**Status:** Open
+**Status:** Resolved — see packages/db/README.md
 
 §8.1.1 layer 3 mandates: *"the database connection acquired for a request
 has its session-level `app.tenant_id` setting set immediately."*

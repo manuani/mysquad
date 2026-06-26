@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleDefinition } from '@voai/types';
 
-import identityModule from '@voai/identity';
-import tenancyModule from '@voai/tenancy';
+import identityAndTenancyModule from '@voai/identity-and-tenancy';
 import meetingModule from '@voai/meeting';
 import brainModule from '@voai/brain';
 import ledgerModule from '@voai/ledger';
@@ -15,8 +14,7 @@ import notificationModule from '@voai/notification';
 import adminConsoleApiModule from '@voai/admin-console-api';
 
 const ALL_MODULES: Array<[string, ModuleDefinition]> = [
-  ['identity', identityModule],
-  ['tenancy', tenancyModule],
+  ['identity-and-tenancy', identityAndTenancyModule],
   ['meeting', meetingModule],
   ['brain', brainModule],
   ['ledger', ledgerModule],
@@ -30,8 +28,8 @@ const ALL_MODULES: Array<[string, ModuleDefinition]> = [
 ];
 
 describe('platform module registration', () => {
-  it('imports all 12 service modules', () => {
-    expect(ALL_MODULES).toHaveLength(12);
+  it('imports all 11 service modules', () => {
+    expect(ALL_MODULES).toHaveLength(11);
   });
 
   it.each(ALL_MODULES)('module %s exposes a valid ModuleDefinition', (name, mod) => {
