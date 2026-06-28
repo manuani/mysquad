@@ -263,6 +263,12 @@ importers:
 
   services/brain:
     dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors
@@ -319,6 +325,12 @@ importers:
 
   services/ledger:
     dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors
