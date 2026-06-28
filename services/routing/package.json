@@ -30,6 +30,9 @@
     "@voai/types": "workspace:*",
     "@voai/telemetry": "workspace:*",
     "@voai/errors": "workspace:*",
+    "@voai/config": "workspace:*",
+    "@voai/auth-context": "workspace:*",
+    "@anthropic-ai/sdk": "^0.32.0",
     "express": "^4.21.0"
   }
 }
