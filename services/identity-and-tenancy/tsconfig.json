@@ -8,7 +8,9 @@
   "references": [
     { "path": "../../packages/types" },
     { "path": "../../packages/telemetry" },
-    { "path": "../../packages/errors" }
+    { "path": "../../packages/errors" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/auth-context" }
   ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "tests"]

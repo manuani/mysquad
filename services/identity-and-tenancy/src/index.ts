@@ -15,20 +15,41 @@
  * Sprint reference: Phase 1, Sprint 1.2 (Identity and authentication) and
  * Sprint 1.2.2 (Tenant model and enforcement).
  *
- * This module is a stub at the skeleton stage. It exposes the
- * ModuleDefinition contract so the API gateway can register it and CI can
- * verify the build. Real handlers, persistence, and tests are added in the
- * sprints above.
+ * Real handlers and persistence land in this session (Deliverables 1.2.1
+ * and 1.2.2), built against a `DevAuthProvider` because no real WorkOS
+ * account is available in this environment — see `dev-auth-provider.ts`
+ * for what's deferred to the session that has WorkOS credentials.
  */
 
-import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
+import type { PostgresClient } from '@voai/db';
+import { DevAuthProvider } from './dev-auth-provider.js';
+import { buildIdentityAndTenancyRouter } from './routes.js';
+
+export type { AuthProvider, AuthResult, ProviderIdentity, SignInMethod } from './auth-provider.js';
+export { DevAuthProvider } from './dev-auth-provider.js';
+export {
+  createTenantWithFounder,
+  findUserByEmailAcrossTenants,
+  getUserInTenant,
+  SYSTEM_TENANT,
+  type TenantRow,
+  type UserRow,
+} from './tenancy.js';
 
 export const identityAndTenancyModule: ModuleDefinition = {
   name: 'identity-and-tenancy',
   async register(ctx: ModuleContext): Promise<ModuleHandle> {
     const log = ctx.logger.child({ module: 'identity-and-tenancy' });
-    const router = express.Router();
+
+    // ctx.db.postgres is typed as `unknown` in @voai/types (module.ts
+    // intentionally keeps DatabaseClients loosely typed there to avoid a
+    // circular dependency on @voai/db); narrow it to the concrete
+    // PostgresClient contract this module compiles against.
+    const postgres = ctx.db.postgres as PostgresClient;
+    const authProvider = new DevAuthProvider(postgres);
+
+    const router = buildIdentityAndTenancyRouter(authProvider);
 
     router.get('/healthz', (_req, res) => {
       res.json({ module: 'identity-and-tenancy', status: 'healthy' });
