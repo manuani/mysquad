@@ -71,9 +71,29 @@ export class DevAuthProvider implements AuthProvider {
     return this.issueSession(tenant.id, user.id, user.userType, method);
   }
 
+  /**
+   * Two-step lookup, not one: `auth_sessions` has FORCE RLS keyed on
+   * `tenant_id = current_setting('app.tenant_id')`. Querying it scoped to
+   * `SYSTEM_TENANT` returns zero rows for every real session — confirmed
+   * broken end to end against the live stack. `auth_session_tenant_index`
+   * (no RLS, maps token_hash -> tenant_id only) resolves the tenant first;
+   * the real session row is then fetched scoped to that tenant, where RLS
+   * correctly allows it through.
+   */
   async resolveSession(sessionToken: string): Promise<AuthResult | null> {
     const tokenHash = hashToken(sessionToken);
-    return this.postgres.withTenant(SYSTEM_TENANT, async (client) => {
+
+    const indexRow = await this.postgres.withTenant(SYSTEM_TENANT, async (client) => {
+      const result = await client.query<{ tenant_id: string; expires_at: string }>(
+        'select tenant_id, expires_at from auth_session_tenant_index where token_hash = $1',
+        [tokenHash],
+      );
+      return result.rows[0] ?? null;
+    });
+    if (!indexRow) return null;
+    if (new Date(indexRow.expires_at).getTime() <= Date.now()) return null;
+
+    return this.postgres.withTenant(indexRow.tenant_id, async (client) => {
       const result = await client.query<AuthSessionSqlRow>(
         `select id, tenant_id, user_id, expires_at, revoked_at
          from auth_sessions
@@ -104,7 +124,17 @@ export class DevAuthProvider implements AuthProvider {
 
   async signOut(sessionToken: string): Promise<void> {
     const tokenHash = hashToken(sessionToken);
-    await this.postgres.withTenant(SYSTEM_TENANT, async (client) => {
+
+    const indexRow = await this.postgres.withTenant(SYSTEM_TENANT, async (client) => {
+      const result = await client.query<{ tenant_id: string }>(
+        'select tenant_id from auth_session_tenant_index where token_hash = $1',
+        [tokenHash],
+      );
+      return result.rows[0] ?? null;
+    });
+    if (!indexRow) return;
+
+    await this.postgres.withTenant(indexRow.tenant_id, async (client) => {
       await client.query('update auth_sessions set revoked_at = now() where token_hash = $1 and revoked_at is null', [
         tokenHash,
       ]);
@@ -126,6 +156,17 @@ export class DevAuthProvider implements AuthProvider {
         `insert into auth_sessions (tenant_id, user_id, token_hash, sign_in_method, expires_at)
          values ($1, $2, $3, $4, $5)`,
         [tenantId, userId, tokenHash, method, expiresAt],
+      );
+    });
+
+    // Mirrors the index write in tenancy.ts's createTenantWithFounder: the
+    // non-RLS auth_session_tenant_index is what makes resolveSession/signOut
+    // able to discover this session's tenant before they're allowed to see
+    // anything in the RLS-protected auth_sessions table.
+    await this.postgres.withTenant(SYSTEM_TENANT, async (client) => {
+      await client.query(
+        'insert into auth_session_tenant_index (token_hash, tenant_id, expires_at) values ($1, $2, $3)',
+        [tokenHash, tenantId, expiresAt],
       );
     });
 

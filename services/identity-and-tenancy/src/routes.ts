@@ -11,6 +11,7 @@
 import { Router, type Request, type Response } from 'express';
 import { buildTenantContext } from '@voai/auth-context';
 import { isPlatformError, UnauthenticatedError, ValidationError } from '@voai/errors';
+import type { Logger } from '@voai/types';
 import type { AuthProvider, SignInMethod } from './auth-provider.js';
 
 const SIGN_IN_METHODS: readonly SignInMethod[] = ['apple', 'google', 'microsoft', 'email_magic_link'];
@@ -27,11 +28,18 @@ function extractBearerToken(req: Request): string | null {
   return token;
 }
 
-function handleError(err: unknown, res: Response): void {
+function handleError(err: unknown, res: Response, log: Logger): void {
   if (isPlatformError(err)) {
     res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
     return;
   }
+  // Unexpected (non-platform) errors are exactly the ones worth seeing —
+  // a bug here was previously invisible because this branch returned a
+  // generic 500 with no log line at all.
+  log.error('unhandled error in identity-and-tenancy route', {
+    err: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+  });
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
 }
 
@@ -46,7 +54,7 @@ function parseSignUpInRequest(req: Request): { email: string; method: SignInMeth
   return { email, method };
 }
 
-export function buildIdentityAndTenancyRouter(authProvider: AuthProvider): Router {
+export function buildIdentityAndTenancyRouter(authProvider: AuthProvider, log: Logger): Router {
   const router = Router();
 
   router.post('/signup', async (req: Request, res: Response) => {
@@ -55,7 +63,7 @@ export function buildIdentityAndTenancyRouter(authProvider: AuthProvider): Route
       const result = await authProvider.signUp(email, method);
       res.status(201).json(result);
     } catch (err) {
-      handleError(err, res);
+      handleError(err, res, log);
     }
   });
 
@@ -65,7 +73,7 @@ export function buildIdentityAndTenancyRouter(authProvider: AuthProvider): Route
       const result = await authProvider.signIn(email, method);
       res.status(200).json(result);
     } catch (err) {
-      handleError(err, res);
+      handleError(err, res, log);
     }
   });
 
@@ -92,7 +100,7 @@ export function buildIdentityAndTenancyRouter(authProvider: AuthProvider): Route
         expiresAt: session.expiresAt,
       });
     } catch (err) {
-      handleError(err, res);
+      handleError(err, res, log);
     }
   });
 
@@ -105,7 +113,7 @@ export function buildIdentityAndTenancyRouter(authProvider: AuthProvider): Route
       await authProvider.signOut(token);
       res.status(204).send();
     } catch (err) {
-      handleError(err, res);
+      handleError(err, res, log);
     }
   });
 

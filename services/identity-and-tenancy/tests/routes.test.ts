@@ -3,8 +3,17 @@ import express from 'express';
 import type { Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConflictError, NotFoundError, UnauthenticatedError } from '@voai/errors';
+import type { Logger } from '@voai/types';
 import type { AuthProvider, AuthResult, SignInMethod } from '../src/auth-provider.js';
 import { buildIdentityAndTenancyRouter } from '../src/routes.js';
+
+const noopLogger: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => noopLogger,
+};
 
 const SAMPLE_RESULT: AuthResult = {
   sessionToken: 'token-abc',
@@ -52,7 +61,7 @@ describe('identity-and-tenancy routes', () => {
     fakeProvider = new FakeAuthProvider();
     const app = express();
     app.use(express.json());
-    app.use(buildIdentityAndTenancyRouter(fakeProvider));
+    app.use(buildIdentityAndTenancyRouter(fakeProvider, noopLogger));
 
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => resolve());

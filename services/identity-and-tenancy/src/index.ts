@@ -49,7 +49,7 @@ export const identityAndTenancyModule: ModuleDefinition = {
     const postgres = ctx.db.postgres as PostgresClient;
     const authProvider = new DevAuthProvider(postgres);
 
-    const router = buildIdentityAndTenancyRouter(authProvider);
+    const router = buildIdentityAndTenancyRouter(authProvider, log);
 
     router.get('/healthz', (_req, res) => {
       res.json({ module: 'identity-and-tenancy', status: 'healthy' });

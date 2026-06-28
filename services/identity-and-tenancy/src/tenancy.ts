@@ -63,16 +63,25 @@ function toUser(row: UserSqlRow): UserRow {
  * Creates a new tenant plus its first user (the founder who signed up).
  * Called once per sign-up, before any `TenantContext` exists for the
  * caller — that's why this takes a tenant name/email rather than a
- * `TenantContext`. Uses `SYSTEM_TENANT` to satisfy `withTenant`'s
- * signature; it does not gate this insert, matching the integration test's
- * seeding pattern for the root table.
+ * `TenantContext`.
+ *
+ * Two separate `withTenant` calls, not one: `users` has `FORCE ROW LEVEL
+ * SECURITY` with a policy keyed on `tenant_id = current_setting('app.tenant_id')`,
+ * and Postgres uses that same expression as the INSERT's implicit `WITH
+ * CHECK` when none is given explicitly. Inserting the founder's row while
+ * still scoped to `SYSTEM_TENANT` fails RLS, because the row's `tenant_id`
+ * is the brand-new tenant, not `SYSTEM_TENANT` — `current_setting('app.tenant_id')`
+ * has to equal the row's `tenant_id` at insert time, so the user insert
+ * must run in a connection scoped to the tenant that was just created.
+ * (Caught by exercising this endpoint end to end against the live stack —
+ * the unit tests mock `PostgresClient` and don't exercise real RLS.)
  */
 export async function createTenantWithFounder(
   postgres: PostgresClient,
   tenantName: string,
   email: string,
 ): Promise<{ tenant: TenantRow; user: UserRow }> {
-  return postgres.withTenant(SYSTEM_TENANT, async (client) => {
+  const tenant = await postgres.withTenant(SYSTEM_TENANT, async (client) => {
     const tenantResult = await client.query<TenantSqlRow>(
       'insert into tenants (name) values ($1) returning id, name, created_at',
       [tenantName],
@@ -81,8 +90,10 @@ export async function createTenantWithFounder(
     if (!tenantRow) {
       throw new Error('failed to create tenant');
     }
-    const tenant = toTenant(tenantRow);
+    return toTenant(tenantRow);
+  });
 
+  const user = await postgres.withTenant(tenant.id, async (client) => {
     const userResult = await client.query<UserSqlRow>(
       `insert into users (tenant_id, email, user_type)
        values ($1, $2, 'founder')
@@ -93,25 +104,50 @@ export async function createTenantWithFounder(
     if (!userRow) {
       throw new Error('failed to create founder user');
     }
-    return { tenant, user: toUser(userRow) };
+    return toUser(userRow);
   });
+
+  // `email_tenant_index` has no RLS (same exception as `tenants`) — it
+  // exists purely so `findUserByEmailAcrossTenants` can discover which
+  // tenant to scope into, before it's allowed to see anything in `users`.
+  // Without this, a real cross-tenant email lookup is structurally
+  // impossible: RLS would hide the row no matter which tenant you guess.
+  await postgres.withTenant(SYSTEM_TENANT, async (client) => {
+    await client.query('insert into email_tenant_index (email, tenant_id) values ($1, $2)', [
+      email,
+      tenant.id,
+    ]);
+  });
+
+  return { tenant, user };
 }
 
 /**
  * Finds a user by email across all tenants. Used at sign-in time, before
- * the caller knows which tenant the email belongs to — this is the one
- * place this module looks up a user without an existing `TenantContext`,
- * which is why it scans via `SYSTEM_TENANT` rather than a real tenant id.
- * RLS does not gate this query path because `users` policies key on
- * `tenant_id = current_setting('app.tenant_id')`, and the seed/lookup here
- * deliberately needs to search before that's known; this mirrors how a
- * real WorkOS callback resolves identity before tenant scope is known.
+ * the caller knows which tenant the email belongs to.
+ *
+ * Two-step lookup, not one: first resolve `tenant_id` from
+ * `email_tenant_index` (no RLS — it only maps email -> tenant_id, nothing
+ * else), then re-query `users` scoped to that real tenant_id so RLS
+ * actually allows the row through. A single query scoped to `SYSTEM_TENANT`
+ * would have RLS silently hide every row belonging to a real tenant —
+ * confirmed broken by exercising sign-in end to end against the live
+ * stack; the unit tests mock `PostgresClient` and don't exercise RLS.
  */
 export async function findUserByEmailAcrossTenants(
   postgres: PostgresClient,
   email: string,
 ): Promise<{ tenant: TenantRow; user: UserRow } | null> {
-  return postgres.withTenant(SYSTEM_TENANT, async (client) => {
+  const indexRow = await postgres.withTenant(SYSTEM_TENANT, async (client) => {
+    const result = await client.query<{ tenant_id: string }>(
+      'select tenant_id from email_tenant_index where email = $1',
+      [email],
+    );
+    return result.rows[0] ?? null;
+  });
+  if (!indexRow) return null;
+
+  return postgres.withTenant(indexRow.tenant_id, async (client) => {
     const userResult = await client.query<UserSqlRow>(
       'select id, tenant_id, email, user_type, created_at from users where email = $1',
       [email],
