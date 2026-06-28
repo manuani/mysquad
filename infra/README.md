@@ -4,7 +4,8 @@
 
 - `terraform/` — Infrastructure-as-Code for staging and production.
   Populated in Sprint 1.1.3 (Staging deployment pipeline). Cloud provider
-  (AWS or GCP) selected per Architecture v2 §10.
+  is AWS, primary region `ap-south-1` (Mumbai) — see
+  `docs/adr/012-hosting-aws-india-region.md`.
 - `docker/` — Local-development Docker Compose for Postgres (pgvector),
   Neo4j, Redis, and MinIO (S3-compatible object store). Populated in
   Deliverable 1.1.2 (Local development environment).
@@ -12,7 +13,8 @@
 ## Status
 
 `docker/` is populated. `terraform/` is still a placeholder, pending
-Sprint 1.1.3.
+Sprint 1.1.3 — the cloud provider decision is made (ADR 012); the
+Terraform itself is not yet written.
 
 ## Local development quickstart
 
