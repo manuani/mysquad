@@ -14,11 +14,24 @@
 
 import { Router, type Request, type Response } from 'express';
 import { buildTenantContext, type TenantContext } from '@voai/auth-context';
+import type { PostgresClient } from '@voai/db';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import type { RoutingService } from '@voai/routing';
 import type { Logger } from '@voai/types';
 import { AgentRuntime } from './agent-runtime.js';
+import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
+import { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
+import { MARCUS_DEVILS_ADVOCATE_PERSONA } from './personas/marcus-devils-advocate.js';
+import type { AgentPersona } from './personas/sarah-cfo.js';
+
+/**
+ * The full default roster this showcase build exposes. Real roster
+ * composition is stage-and-industry adapted per Platform Spec §5.1 and
+ * is Phase 4 scope — this is a fixed list for demonstrating the
+ * multi-agent claim, not the real onboarding-driven roster logic.
+ */
+const ROSTER: readonly AgentPersona[] = [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA];
 
 /**
  * Builds a `TenantContext` from request headers, mirroring
@@ -47,7 +60,7 @@ function handleError(err: unknown, res: Response, log: Logger): void {
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
 }
 
-export function buildAgentRuntimeRouter(routingService: RoutingService, log: Logger): Router {
+export function buildAgentRuntimeRouter(routingService: RoutingService, log: Logger, postgres: PostgresClient): Router {
   const router = Router();
   const runtime = new AgentRuntime(routingService);
 
@@ -59,11 +72,60 @@ export function buildAgentRuntimeRouter(routingService: RoutingService, log: Log
         throw new ValidationError('message is required');
       }
 
+      const brainContext = await fetchBrainContextForMessage(tenantContext, postgres, body.message).catch(
+        (err: unknown) => {
+          log.warn('brain context fetch failed, continuing without it', { err: String(err) });
+          return [];
+        },
+      );
+
       const contribution = await runtime.generateContribution(tenantContext, SARAH_CFO_PERSONA, {
         message: body.message,
+        brainContext,
       });
 
       res.status(200).json(contribution);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  /**
+   * The multi-agent showcase endpoint: dispatches the same founder
+   * message to the full roster in parallel and returns every persona's
+   * contribution. This is deliberately NOT the ADR 011 hand-raise/
+   * collision-arbiter pipeline — see agent-runtime.ts's
+   * `generateRosterContributions` for why this is the smallest unit of
+   * proof for the multi-agent claim, not the real Phase 4 implementation.
+   */
+  router.post('/contributions/roster', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromRequest(req);
+      const body = req.body as { message?: unknown };
+      if (typeof body.message !== 'string' || body.message.trim().length === 0) {
+        throw new ValidationError('message is required');
+      }
+
+      const brainContext = await fetchBrainContextForMessage(tenantContext, postgres, body.message).catch(
+        (err: unknown) => {
+          log.warn('brain context fetch failed, continuing without it', { err: String(err) });
+          return [];
+        },
+      );
+
+      const results = await runtime.generateRosterContributions(tenantContext, ROSTER, {
+        message: body.message,
+        brainContext,
+      });
+
+      res.status(200).json({
+        contributions: results.map((r) => ({
+          agentName: r.persona.name,
+          role: r.persona.role,
+          contribution: r.contribution,
+          error: r.error,
+        })),
+      });
     } catch (err) {
       handleError(err, res, log);
     }

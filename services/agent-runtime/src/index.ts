@@ -16,12 +16,15 @@
 
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PlatformConfig } from '@voai/config';
+import type { PostgresClient } from '@voai/db';
 import { AnthropicProvider, RoutingService } from '@voai/routing';
 import { buildAgentRuntimeRouter } from './routes.js';
 
 export { AgentRuntime } from './agent-runtime.js';
 export type { AgentContribution, AgentContributionInput, ConversationTurn } from './agent-runtime.js';
 export { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
+export { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
+export { MARCUS_DEVILS_ADVOCATE_PERSONA } from './personas/marcus-devils-advocate.js';
 export type { AgentPersona } from './personas/sarah-cfo.js';
 
 export const agent_runtimeModule: ModuleDefinition = {
@@ -46,7 +49,12 @@ export const agent_runtimeModule: ModuleDefinition = {
     const provider = new AnthropicProvider(config.anthropicApiKey);
     const routingService = new RoutingService(provider, log);
 
-    const router = buildAgentRuntimeRouter(routingService, log);
+    // Same narrowing pattern as identity-and-tenancy/brain's own module
+    // registration: @voai/types keeps DatabaseClients loosely typed to
+    // avoid a circular dependency on @voai/db.
+    const postgres = ctx.db.postgres as PostgresClient;
+
+    const router = buildAgentRuntimeRouter(routingService, log, postgres);
 
     router.get('/healthz', (_req, res) => {
       res.json({ module: 'agent-runtime', status: 'healthy' });

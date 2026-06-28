@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>VirtualOffice AI — meeting room demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: #f6f5f1;
+    color: #2c2c2a;
+  }
+  .app { display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+  .sidebar {
+    background: #fff;
+    border-right: 1px solid #e4e2da;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .sidebar h2 { font-size: 15px; margin: 0 0 4px; }
+  .sidebar .sub { font-size: 12px; color: #888780; margin-bottom: 16px; }
+  .brain-item {
+    background: #f1efe8;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .brain-item .domain {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5f5e5a;
+    margin-bottom: 4px;
+  }
+  .add-fact { margin-top: 16px; border-top: 1px solid #e4e2da; padding-top: 16px; }
+  .add-fact select, .add-fact textarea, .add-fact button {
+    width: 100%; margin-bottom: 8px; font-size: 13px;
+    padding: 8px; border-radius: 6px; border: 1px solid #d3d1c7; font-family: inherit;
+  }
+  .add-fact textarea { resize: vertical; min-height: 60px; }
+  .add-fact button {
+    background: #26215c; color: #fff; border: none; cursor: pointer; font-weight: 600;
+  }
+  .add-fact button:hover { background: #3c3489; }
+
+  .main { display: flex; flex-direction: column; height: 100vh; }
+  .header { padding: 16px 24px; border-bottom: 1px solid #e4e2da; background: #fff; }
+  .header h1 { font-size: 16px; margin: 0; }
+  .header .sub { font-size: 12px; color: #888780; }
+
+  .transcript { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .bubble { max-width: 640px; padding: 14px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+  .bubble.founder { background: #185fa5; color: #fff; align-self: flex-end; }
+  .bubble.agent { background: #fff; border: 1px solid #e4e2da; align-self: flex-start; }
+  .bubble .name { font-weight: 600; font-size: 12px; margin-bottom: 6px; display: flex; gap: 6px; align-items: baseline; }
+  .bubble .role { font-weight: 400; color: #888780; font-size: 11px; }
+  .bubble.cfo .name { color: #0f6e56; }
+  .bubble.cmo .name { color: #993556; }
+  .bubble.advocate .name { color: #993c1d; }
+  .bubble.error { background: #fcebeb; color: #791f1f; border: 1px solid #f09595; }
+
+  .composer { border-top: 1px solid #e4e2da; padding: 16px 24px; background: #fff; display: flex; gap: 10px; }
+  .composer textarea {
+    flex: 1; resize: none; min-height: 48px; max-height: 140px;
+    padding: 12px; border-radius: 8px; border: 1px solid #d3d1c7; font-size: 14px; font-family: inherit;
+  }
+  .composer button {
+    background: #26215c; color: #fff; border: none; border-radius: 8px;
+    padding: 0 20px; font-weight: 600; cursor: pointer; font-size: 14px;
+  }
+  .composer button:disabled { background: #b4b2a9; cursor: not-allowed; }
+
+  .gate {
+    display: flex; align-items: center; justify-content: center; height: 100vh; background: #f6f5f1;
+  }
+  .gate-card {
+    background: #fff; border-radius: 12px; padding: 32px; width: 360px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .gate-card h1 { font-size: 18px; margin: 0 0 6px; }
+  .gate-card p { font-size: 13px; color: #5f5e5a; margin: 0 0 20px; }
+  .gate-card input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #d3d1c7; font-size: 14px; }
+  .gate-card button { width: 100%; padding: 10px; background: #26215c; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  .pending { color: #888780; font-size: 13px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate" style="display:none;">
+  <div class="gate-card">
+    <h1>VirtualOffice AI</h1>
+    <p>Sign up to enter the meeting room. This is a showcase build — sign-up issues a real session against the live identity-and-tenancy service.</p>
+    <input id="gate-email" type="email" placeholder="founder@yourcompany.com" />
+    <button id="gate-submit">Enter the meeting room</button>
+  </div>
+</div>
+
+<div id="app" class="app" style="display:none;">
+  <div class="sidebar">
+    <h2>What we know about your business</h2>
+    <div class="sub">The brain — referenced by your team automatically, not just shown for the record.</div>
+    <div id="brain-items"></div>
+    <div class="add-fact">
+      <select id="fact-domain">
+        <option value="company_profile">Company profile</option>
+        <option value="financial_state">Financial state</option>
+        <option value="market_and_customers">Market and customers</option>
+        <option value="competitive_landscape">Competitive landscape</option>
+        <option value="goals">Goals</option>
+        <option value="risks">Risks</option>
+      </select>
+      <textarea id="fact-content" placeholder="Add a fact about your business..."></textarea>
+      <button id="fact-submit">Add to brain</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="header" style="display:flex; justify-content:space-between; align-items:baseline;">
+      <div>
+        <h1>Meeting room</h1>
+        <div class="sub" id="session-sub">Sarah Chen (CFO) · Priya Reddy (CMO) · Marcus Webb (Devil's Advocate)</div>
+      </div>
+      <a href="#" id="switch-account" style="font-size:12px; color:#888780;">Switch account</a>
+    </div>
+    <div class="transcript" id="transcript"></div>
+    <div class="composer">
+      <textarea id="composer-input" placeholder="Ask your team something..."></textarea>
+      <button id="composer-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let session = loadValidSession();
+let meetingSessionId = null;
+
+/**
+ * Validates the cached session has every field a real signup/signin
+ * response produces. A partially-failed signup (network blip, server
+ * restart mid-request) could otherwise cache an incomplete object that
+ * silently sends literal "undefined" as a header value on every
+ * subsequent request — found by exercising this page in a real browser,
+ * not by curl testing the API alone.
+ */
+function loadValidSession() {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(localStorage.getItem('voai_demo_session') || 'null');
+  } catch (e) {
+    parsed = null;
+  }
+  const valid = parsed && parsed.tenantId && parsed.userId && parsed.sessionToken;
+  if (!valid) {
+    localStorage.removeItem('voai_demo_session');
+    return null;
+  }
+  return parsed;
+}
+
+const PERSONA_CLASS = {
+  'Sarah Chen': 'cfo',
+  'Priya Reddy': 'cmo',
+  'Marcus Webb': 'advocate',
+};
+
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-tenant-id': session.tenantId,
+    'x-user-id': session.userId,
+    'x-user-type': 'founder',
+    'x-session-id': session.sessionToken,
+  };
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    ...opts,
+    headers: { ...authHeaders(), ...(opts.headers || {}) },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || ('request failed: ' + res.status));
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function showGate() {
+  document.getElementById('gate').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+}
+
+function addBubble(kind, name, role, content) {
+  const transcript = document.getElementById('transcript');
+  const bubble = document.createElement('div');
+  const personaClass = PERSONA_CLASS[name] || '';
+  bubble.className = 'bubble ' + kind + ' ' + personaClass;
+  if (kind === 'agent') {
+    bubble.innerHTML = '<div class="name">' + name + ' <span class="role">' + (role || '') + '</span></div>' +
+      '<div>' + escapeHtml(content).replace(/\n/g, '<br>') + '</div>';
+  } else if (kind === 'error') {
+    bubble.innerHTML = '<div class="name">' + name + '</div><div>' + escapeHtml(content) + '</div>';
+  } else {
+    bubble.textContent = content;
+  }
+  transcript.appendChild(bubble);
+  transcript.scrollTop = transcript.scrollHeight;
+  return bubble;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+async function loadBrainItems() {
+  const domains = ['company_profile', 'financial_state', 'market_and_customers', 'goals', 'risks'];
+  const container = document.getElementById('brain-items');
+  container.innerHTML = '<div class="pending">Loading...</div>';
+  const all = [];
+  for (const domain of domains) {
+    try {
+      const result = await api('/v1/brain/domains/' + domain);
+      for (const item of result.items) all.push(item);
+    } catch (e) { /* domain may be empty, ignore */ }
+  }
+  all.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  container.innerHTML = '';
+  if (all.length === 0) {
+    container.innerHTML = '<div class="sub">No facts yet — add one below.</div>';
+  }
+  for (const item of all) {
+    const div = document.createElement('div');
+    div.className = 'brain-item';
+    div.innerHTML = '<div class="domain">' + item.domain.replace(/_/g, ' ') + '</div>' + escapeHtml(item.content);
+    container.appendChild(div);
+  }
+}
+
+async function startMeetingSession() {
+  const result = await api('/v1/meeting/sessions', { method: 'POST', body: JSON.stringify({}) });
+  meetingSessionId = result.id;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('composer-input');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+  document.getElementById('composer-send').disabled = true;
+
+  addBubble('founder', 'You', '', message);
+
+  if (meetingSessionId) {
+    api('/v1/meeting/sessions/' + meetingSessionId + '/transcript', {
+      method: 'POST',
+      body: JSON.stringify({ speakerType: 'founder', speakerName: 'Founder', content: message }),
+    }).catch(() => {});
+  }
+
+  const pending = addBubble('error', 'Your team', '', 'Thinking...');
+  pending.className = 'bubble agent';
+  pending.querySelector('div:last-child') && (pending.querySelector('div:last-child').textContent = 'Your team is thinking...');
+
+  try {
+    const result = await api('/v1/agent-runtime/contributions/roster', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+    pending.remove();
+    for (const c of result.contributions) {
+      if (c.error) {
+        addBubble('error', c.agentName, c.role, 'Could not respond: ' + c.error);
+      } else {
+        addBubble('agent', c.agentName, c.role, c.contribution.content);
+        if (meetingSessionId) {
+          api('/v1/meeting/sessions/' + meetingSessionId + '/transcript', {
+            method: 'POST',
+            body: JSON.stringify({ speakerType: 'agent', speakerName: c.agentName, content: c.contribution.content }),
+          }).catch(() => {});
+        }
+      }
+    }
+  } catch (e) {
+    pending.remove();
+    addBubble('error', 'Error', '', e.message);
+  }
+
+  document.getElementById('composer-send').disabled = false;
+  loadBrainItems();
+}
+
+document.getElementById('switch-account').addEventListener('click', (e) => {
+  e.preventDefault();
+  localStorage.removeItem('voai_demo_session');
+  session = null;
+  meetingSessionId = null;
+  document.getElementById('transcript').innerHTML = '';
+  showGate();
+});
+
+/**
+ * Signup/signin are pre-auth endpoints — they must NOT go through api(),
+ * which always builds authHeaders() from the current session. Before
+ * sign-in, session is null, so authHeaders() throws; that exception was
+ * being silently swallowed by a blanket .catch() that fell through to
+ * signin and then accepted whatever JSON came back — including an error
+ * body — as if it were a valid session. Plain fetch, explicit ok checks,
+ * no shared helper that assumes a session already exists.
+ */
+async function signUpOrSignIn(email) {
+  const signupRes = await fetch(API + '/v1/identity-and-tenancy/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, method: 'email_magic_link' }),
+  });
+  if (signupRes.ok) return signupRes.json();
+
+  // Signup fails with 409 if this email already has an account from a
+  // prior demo run — sign in instead. Any other failure is real and
+  // should surface, not be papered over.
+  const signinRes = await fetch(API + '/v1/identity-and-tenancy/signin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, method: 'email_magic_link' }),
+  });
+  if (!signinRes.ok) {
+    const body = await signinRes.json().catch(() => ({}));
+    throw new Error(body.message || ('sign-in failed: ' + signinRes.status));
+  }
+  return signinRes.json();
+}
+
+document.getElementById('gate-submit').addEventListener('click', async () => {
+  const email = document.getElementById('gate-email').value.trim();
+  if (!email) return;
+  try {
+    const result = await signUpOrSignIn(email);
+    if (!result.tenantId || !result.userId || !result.sessionToken) {
+      throw new Error('server returned an incomplete session');
+    }
+    session = result;
+    localStorage.setItem('voai_demo_session', JSON.stringify(session));
+    await init();
+  } catch (e) {
+    alert('Could not sign up: ' + e.message);
+  }
+});
+
+document.getElementById('composer-send').addEventListener('click', sendMessage);
+document.getElementById('composer-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+document.getElementById('fact-submit').addEventListener('click', async () => {
+  const domain = document.getElementById('fact-domain').value;
+  const content = document.getElementById('fact-content').value.trim();
+  if (!content) return;
+  await api('/v1/brain/domains/' + domain, {
+    method: 'POST',
+    body: JSON.stringify({ content, source: 'founder_edit', language: 'en' }),
+  });
+  document.getElementById('fact-content').value = '';
+  loadBrainItems();
+});
+
+async function init() {
+  if (!session) {
+    showGate();
+    return;
+  }
+  showApp();
+  try {
+    await startMeetingSession();
+  } catch (e) {
+    console.error('could not start meeting session', e);
+  }
+  loadBrainItems();
+}
+
+init();
+</script>
+</body>
+</html>

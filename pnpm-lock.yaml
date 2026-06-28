@@ -241,9 +241,15 @@ importers:
       '@voai/auth-context':
         specifier: workspace:*
         version: link:../../packages/auth-context
+      '@voai/brain':
+        specifier: workspace:*
+        version: link:../brain
       '@voai/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors

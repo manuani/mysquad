@@ -14,78 +14,99 @@ This service exports a `ModuleDefinition` (from `@voai/types`). The API
 gateway registers it at boot. Other services that need to call this one import
 the typed service from `@voai/agent-runtime` — never reach into internal files.
 
-## What's implemented (this deliverable — Sprint Plan 2.1.1)
+## What's implemented
 
-**Single-agent only.** This deliverable is scoped to exactly one agent
-persona and one LLM call path. It does not build multi-agent
-orchestration, the hand-raise protocol, sub-agent dispatch (brain
-retriever, calculator, document analyst, web search), or any
-LangGraph/state-machine orchestration framework — that decision belongs to
-Phase 4 (multi-agent meetings, Sprints 4.2-4.3) and has not been made yet.
+Beyond the Deliverable 2.1.1 single-agent baseline, this also includes a
+deliberately-simplified showcase of the multi-agent claim (see below) —
+real product content (three personas, brain continuity), not the Phase 4
+hand-raise/orchestration pipeline (ADR 011), which has not been built.
 
-- **Persona** (`src/personas/sarah-cfo.ts`) — Sarah Chen, CFO: name, role,
-  tone ("warm and measured", per Strategic Vision §6.3), and a real system
-  prompt establishing her domain (financial strategy, fundraising, unit
-  economics, runway, per Platform Specification §5.1) and communication
-  style. Dispatch policy, conviction calibration, and the competence model
-  from Platform Specification §6.3 are later-phase scope and not modeled
-  here.
-- **`AgentRuntime`** (`src/agent-runtime.ts`) — takes `tenantContext`
-  (ADR 007, first parameter), a persona, and `{ message, priorTurns? }`;
-  assembles the persona's system prompt and conversation history into a
-  routing request, calls `@voai/routing`'s `RoutingService.complete()`,
-  and returns a structured `AgentContribution`
-  (`{ agentName, content, generatedAt }`). This is the seam multi-agent
-  dispatch builds on top of later — kept single-purpose now.
-- **HTTP route** — `POST /v1/agent-runtime/contributions`
-  (`src/routes.ts`), built on the same header-based tenant-context
-  pattern as `services/brain/src/routes.ts` (`x-tenant-id` / `x-user-id`
-  / `x-user-type` / `x-session-id`), since there is no gateway auth
-  middleware yet. Accepts `{ message: string }`, invokes Sarah's persona
-  through `RoutingService`, and returns her contribution. Unexpected
-  errors are logged via the module's `Logger` before the 500 response is
-  sent — never a silent catch.
-- **Cross-module call** — goes through `@voai/routing`'s typed exports
-  (`RoutingService`, `AnthropicProvider`, `LlmMessage`), never by reaching
-  into `services/routing/src` internals (CLAUDE.md "Module boundaries are
-  real"). `src/index.ts` constructs its own `RoutingService` instance from
-  the same `PlatformConfig.anthropicApiKey` routing's own module uses,
-  since there is no in-process module registry yet for one module to look
-  up another's already-constructed service by name.
-- **Tests** (`tests/`):
-  - `agent-runtime.test.ts` — unit tests against a fake `RoutingService`;
-    covers system-prompt assembly, conversation-history ordering,
-    `tenantContext` threading, and the `AgentContribution` shape. No real
-    network/LLM calls.
-  - `routes.test.ts` — boots a real `http.Server` (matching
-    `services/ledger/tests/routes.test.ts`'s pattern) against a fake
-    `RoutingService`; covers the happy path, validation errors, missing
-    tenant headers, and that unexpected routing errors are logged (not
-    silently swallowed) before the 500 response.
-  - `smoke.test.ts` — pre-existing module-registration contract test.
+- **Personas** (`src/personas/`):
+  - `sarah-cfo.ts` — Sarah Chen, CFO: "warm and measured" (Strategic
+    Vision §6.3), financial strategy/fundraising/runway (Platform Spec
+    §5.1).
+  - `priya-cmo.ts` — Priya Reddy, CMO: "sharp and direct", marketing
+    strategy/positioning/acquisition.
+  - `marcus-devils-advocate.ts` — Marcus Webb, Devil's Advocate: "probing
+    and a little disagreeable", a structural counterweight role (not a
+    domain specialty) that challenges assumptions across any topic.
+  - Dispatch policy, conviction calibration, and the competence model
+    from Platform Specification §6.3 are later-phase scope and not
+    modeled for any persona here.
+- **`AgentRuntime`** (`src/agent-runtime.ts`):
+  - `generateContribution(tenantContext, persona, input)` — takes
+    `tenantContext` (ADR 007, first parameter), assembles the persona's
+    system prompt (plus brain context and teammate names, see below) and
+    conversation history into a routing request, calls `@voai/routing`'s
+    `RoutingService.complete()`, returns a structured `AgentContribution`.
+  - `generateRosterContributions(tenantContext, personas, input)` —
+    dispatches the same input to multiple personas **in parallel**
+    (`Promise.allSettled`, so one agent's provider error doesn't block
+    the others) and returns every contribution. This is the smallest unit
+    of proof for the Strategic Vision's claim that this is "a meeting
+    with a team," not a single chatbot — explicitly NOT the ADR 011
+    hand-raise/collision-arbiter pipeline. Each persona is told the real
+    names/roles of its teammates (excluding itself) so it defers to the
+    correct person by name instead of inventing one — found and fixed
+    after live-stack testing showed Sarah deferring to invented
+    teammates "Maya (CMO)" and "Raj (COO)."
+- **Brain continuity** (`src/brain-context.ts`) — `fetchBrainContextForMessage`
+  calls `@voai/brain`'s typed exports (never reaches into brain's
+  internals) to fetch relevant business context and inject it into the
+  system prompt, so an agent's response is demonstrably continuous
+  across sessions (Strategic Vision §3.2: "a colleague who remembers",
+  not "a clever toy"). Two-step: extract a few distinctive keywords from
+  the founder's message (the raw message can't be passed directly to
+  `searchBrainContent` — its `ILIKE` is a literal substring match, so a
+  full sentence essentially never matches real content) and search by
+  keyword; falls back to the most recently updated items across all eight
+  domains if no keyword matches, so a new or unmatched query still gets
+  *some* business context rather than none.
+- **HTTP routes** (`src/routes.ts`), header-based tenant-context pattern
+  matching `services/brain/src/routes.ts` (no gateway auth middleware
+  yet):
+  - `POST /v1/agent-runtime/contributions` — single-agent (Sarah), with
+    brain context.
+  - `POST /v1/agent-runtime/contributions/roster` — the full
+    three-persona roster in parallel, with brain context and
+    teammate-awareness for every persona.
+  - Unexpected errors are logged via the module's `Logger` before the 500
+    response — never a silent catch.
+- **Cross-module calls** — `@voai/routing`'s typed exports
+  (`RoutingService`, `AnthropicProvider`, `LlmMessage`) and `@voai/brain`'s
+  typed exports (`searchBrainContent`, `listBrainContentByDomain`,
+  `BRAIN_DOMAINS`), never by reaching into either module's internals
+  (CLAUDE.md "Module boundaries are real").
+- **Tests** (`tests/`): `agent-runtime.test.ts` (system-prompt assembly,
+  brain-context injection, teammate-awareness, parallel roster dispatch
+  and per-agent failure isolation), `brain-context.test.ts`
+  (keyword-match vs. recency-fallback logic), `routes.test.ts` (both
+  HTTP routes, validation, tenant-context errors, error logging),
+  `smoke.test.ts`.
 
 ## Deferred / stubbed
 
-- **No multi-agent orchestration, hand-raise protocol, or sub-agent
-  dispatch.** Explicitly Phase 4 (Sprints 4.2-4.3) scope, depending on an
-  orchestration-framework decision (e.g. LangGraph vs. custom
-  state-machine) that has not been made. Adding it should not require
-  reshaping `AgentContribution` or `AgentRuntime.generateContribution`'s
-  signature — that's the point of keeping this seam single-purpose now.
-- **No real Anthropic response can be exercised in this environment.**
-  There is no real `ANTHROPIC_API_KEY` configured. This matches routing's
-  own documented gap (`services/routing/README.md` "Deferred"): a `curl`
-  against a booted `apps/api-server` reaches routing's
-  `PROVIDER_UNAVAILABLE` (503) cleanly rather than completing a real call
-  or crashing — confirmed as part of this deliverable's verification.
-- **Only one persona.** Other agents (e.g. a CTO, COO) and per-tenant
-  persona customization (founders renaming Sarah, but not changing her
-  underlying persona, per Platform Specification §6.3) are out of scope
-  here.
+- **No ADR 011 hand-raise/collision-arbiter pipeline.** The roster
+  endpoint above is a deliberately simplified showcase of the multi-agent
+  claim — real persona content, real parallel dispatch — not the Phase 4
+  orchestration design (parallel observation, collision-gated LLM
+  arbiter, founder-facing hand-raise queue). Building that should not
+  require reshaping `AgentContribution` or `generateContribution`'s
+  signature.
+- **No real Anthropic response can be exercised without a configured
+  `ANTHROPIC_API_KEY`.** When one is configured, both endpoints make real
+  calls; verified live against the deployed stack with seeded brain
+  content (three personas independently producing distinct, persona-
+  consistent responses that reference seeded business facts without
+  being told them directly in the request).
+- **Only three personas.** The real default roster (5-7 agents,
+  stage-and-industry adapted per Platform Specification §5.1) and
+  per-tenant persona customization are out of scope here.
 
 ## Status
 
-Single-agent persona, runtime, and HTTP route implemented per Deliverable
-2.1.1. See `src/personas/sarah-cfo.ts` for the persona, `src/agent-runtime.ts`
-for the runtime, `src/routes.ts` for the HTTP surface, `src/index.ts` for
-module registration, and `tests/` for coverage.
+Single-agent baseline (Deliverable 2.1.1) plus a showcase extension:
+multi-persona parallel dispatch, brain continuity, and teammate-awareness.
+See `src/personas/`, `src/agent-runtime.ts`, `src/brain-context.ts`,
+`src/routes.ts`, `src/index.ts`, and `tests/` for the implementation and
+coverage.

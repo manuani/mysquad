@@ -3,6 +3,8 @@ import type { TenantContext } from '@voai/auth-context';
 import type { LlmCompletionRequest, LlmCompletionResult, RoutingService } from '@voai/routing';
 import { AgentRuntime } from '../src/agent-runtime.js';
 import { SARAH_CFO_PERSONA } from '../src/personas/sarah-cfo.js';
+import { PRIYA_CMO_PERSONA } from '../src/personas/priya-cmo.js';
+import { MARCUS_DEVILS_ADVOCATE_PERSONA } from '../src/personas/marcus-devils-advocate.js';
 
 const TENANT_CONTEXT: TenantContext = {
   tenantId: 'tenant-1',
@@ -98,5 +100,113 @@ describe('AgentRuntime', () => {
     await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, { message: 'just one message' });
 
     expect(capturedRequest?.messages).toEqual([{ role: 'user', content: 'just one message' }]);
+  });
+
+  it('injects brainContext into the system prompt when provided', async () => {
+    let capturedRequest: LlmCompletionRequest | undefined;
+    const routingService = makeFakeRoutingService(async (request) => {
+      capturedRequest = request;
+      return { content: 'ok', model: 'fake-model', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+
+    const runtime = new AgentRuntime(routingService);
+    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
+      message: 'How is runway looking?',
+      brainContext: ['[financial_state] Burn rate is $80k/month', '[company_profile] B2B SaaS, founded 2024'],
+    });
+
+    expect(capturedRequest?.systemPrompt).toContain(SARAH_CFO_PERSONA.systemPrompt);
+    expect(capturedRequest?.systemPrompt).toContain('Burn rate is $80k/month');
+    expect(capturedRequest?.systemPrompt).toContain('B2B SaaS, founded 2024');
+    expect(capturedRequest?.systemPrompt).toContain('colleague with continuity');
+  });
+
+  it('does not alter the system prompt when brainContext is empty or omitted', async () => {
+    let capturedRequest: LlmCompletionRequest | undefined;
+    const routingService = makeFakeRoutingService(async (request) => {
+      capturedRequest = request;
+      return { content: 'ok', model: 'fake-model', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+
+    const runtime = new AgentRuntime(routingService);
+    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
+      message: 'hi',
+      brainContext: [],
+    });
+
+    expect(capturedRequest?.systemPrompt).toBe(SARAH_CFO_PERSONA.systemPrompt);
+  });
+
+  describe('generateRosterContributions', () => {
+    it('dispatches to every persona in parallel and returns each contribution', async () => {
+      const routingService = makeFakeRoutingService(async (request) => ({
+        content: `response to: ${request.systemPrompt.slice(0, 20)}`,
+        model: 'fake-model',
+        usage: { inputTokens: 1, outputTokens: 1 },
+      }));
+      const completeSpy = vi.spyOn(routingService, 'complete');
+
+      const runtime = new AgentRuntime(routingService);
+      const results = await runtime.generateRosterContributions(
+        TENANT_CONTEXT,
+        [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
+        { message: 'Should we raise now or wait?' },
+      );
+
+      expect(completeSpy).toHaveBeenCalledTimes(3);
+      expect(results).toHaveLength(3);
+      expect(results.map((r) => r.persona.name)).toEqual(['Sarah Chen', 'Priya Reddy', 'Marcus Webb']);
+      expect(results.every((r) => r.contribution !== null && r.error === null)).toBe(true);
+    });
+
+    it("tells each persona who their real teammates are, excluding themselves", async () => {
+      const capturedPrompts: string[] = [];
+      const routingService = makeFakeRoutingService(async (request) => {
+        capturedPrompts.push(request.systemPrompt);
+        return { content: 'ok', model: 'fake-model', usage: { inputTokens: 1, outputTokens: 1 } };
+      });
+
+      const runtime = new AgentRuntime(routingService);
+      await runtime.generateRosterContributions(
+        TENANT_CONTEXT,
+        [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
+        { message: 'hello' },
+      );
+
+      const sarahPrompt = capturedPrompts[0] as string;
+      expect(sarahPrompt).toContain('Priya Reddy, Chief Marketing Officer');
+      expect(sarahPrompt).toContain("Marcus Webb, Devil's Advocate");
+      expect(sarahPrompt).not.toContain('Sarah Chen, Chief Financial Officer');
+      expect(sarahPrompt).not.toContain('Maya');
+      expect(sarahPrompt).not.toContain('Raj');
+    });
+
+    it('isolates one persona\'s failure from the others rather than failing the whole roster', async () => {
+      let callCount = 0;
+      const routingService: RoutingService = {
+        complete: vi.fn(async () => {
+          callCount += 1;
+          if (callCount === 2) {
+            throw new Error('provider unavailable');
+          }
+          return { content: 'ok', model: 'fake-model', usage: { inputTokens: 1, outputTokens: 1 } };
+        }),
+      } as unknown as RoutingService;
+
+      const runtime = new AgentRuntime(routingService);
+      const results = await runtime.generateRosterContributions(
+        TENANT_CONTEXT,
+        [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
+        { message: 'hello' },
+      );
+
+      expect(results).toHaveLength(3);
+      const failed = results.find((r) => r.error !== null);
+      const succeeded = results.filter((r) => r.error === null);
+      expect(failed).toBeDefined();
+      expect(failed?.contribution).toBeNull();
+      expect(succeeded).toHaveLength(2);
+      expect(succeeded.every((r) => r.contribution !== null)).toBe(true);
+    });
   });
 });

@@ -33,6 +33,8 @@
     "@voai/auth-context": "workspace:*",
     "@voai/config": "workspace:*",
     "@voai/routing": "workspace:*",
+    "@voai/db": "workspace:*",
+    "@voai/brain": "workspace:*",
     "express": "^4.21.0"
   }
 }

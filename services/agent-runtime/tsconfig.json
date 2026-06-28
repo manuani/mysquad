@@ -10,7 +10,10 @@
     { "path": "../../packages/telemetry" },
     { "path": "../../packages/errors" },
     { "path": "../../packages/auth-context" },
-    { "path": "../routing" }
+    { "path": "../../packages/config" },
+    { "path": "../../packages/db" },
+    { "path": "../routing" },
+    { "path": "../brain" }
   ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "tests"]

@@ -3,8 +3,15 @@ import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TenantContext } from '@voai/auth-context';
+import type { PostgresClient, TenantScopedClient } from '@voai/db';
 import type { LlmCompletionRequest, LlmCompletionResult, RoutingService } from '@voai/routing';
 import { buildAgentRuntimeRouter } from '../src/routes.js';
+
+/** Fake Postgres with no brain content — these tests aren't about continuity. */
+function makeFakePostgres(): PostgresClient {
+  const client: TenantScopedClient = { query: async () => ({ rows: [] }) };
+  return { withTenant: async (_tenantId, fn) => fn(client) };
+}
 
 const TENANT_HEADERS = {
   'x-tenant-id': 'tenant-1',
@@ -45,7 +52,7 @@ describe('agent-runtime routes', () => {
 
     const app = express();
     app.use(express.json());
-    app.use(buildAgentRuntimeRouter(routingService, noopLogger));
+    app.use(buildAgentRuntimeRouter(routingService, noopLogger, makeFakePostgres()));
 
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => resolve());
@@ -121,7 +128,7 @@ describe('agent-runtime routes', () => {
     });
     const app = express();
     app.use(express.json());
-    app.use(buildAgentRuntimeRouter(routingService, noopLogger));
+    app.use(buildAgentRuntimeRouter(routingService, noopLogger, makeFakePostgres()));
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => resolve());

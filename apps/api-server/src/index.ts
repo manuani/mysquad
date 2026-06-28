@@ -22,6 +22,8 @@
  * behind a load balancer, not by extracting modules.
  */
 
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import express from 'express';
 import { loadConfig } from '@voai/config';
 import { createDatabaseClients } from '@voai/db';
@@ -109,6 +111,14 @@ async function main(): Promise<void> {
     app.use(`/v1/${handle.name}`, handle.router);
     handles.push(handle);
   }
+
+  // Showcase-only demo UI: a thin static page exercising the real
+  // identity-and-tenancy/brain/agent-runtime/meeting endpoints from the
+  // browser, same-origin (no CORS needed since it's served by this same
+  // process). Not the real product UI — Sprint 1.3.1 builds that as
+  // React Native. See apps/api-server/public/demo/index.html.
+  const demoDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
+  app.use('/demo', express.static(demoDir));
 
   app.get('/healthz', async (_req, res) => {
     const results = await Promise.all(
