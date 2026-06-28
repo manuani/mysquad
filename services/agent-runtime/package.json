@@ -30,6 +30,9 @@
     "@voai/types": "workspace:*",
     "@voai/telemetry": "workspace:*",
     "@voai/errors": "workspace:*",
+    "@voai/auth-context": "workspace:*",
+    "@voai/config": "workspace:*",
+    "@voai/routing": "workspace:*",
     "express": "^4.21.0"
   }
 }
