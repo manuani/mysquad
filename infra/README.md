@@ -12,9 +12,11 @@
 
 ## Status
 
-`docker/` is populated. `terraform/` is still a placeholder, pending
-Sprint 1.1.3 — the cloud provider decision is made (ADR 012); the
-Terraform itself is not yet written.
+`docker/` is populated. `terraform/` is written and `terraform validate`
+passes — see `infra/terraform/README.md` for what it provisions, cost
+shape, and first-time setup. **It has never been applied against a real
+AWS account** — that needs AWS credentials, which only a human can
+supply (same situation as the Anthropic API key earlier in this build).
 
 ## Local development quickstart
 

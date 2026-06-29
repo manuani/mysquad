@@ -1,0 +1,14 @@
+node_modules
+.pnpm-store
+dist
+.turbo
+*.tsbuildinfo
+coverage
+.git
+.env
+.env.local
+.env.*.local
+docs/source-archive
+*.md
+.github
+infra/terraform/.terraform
