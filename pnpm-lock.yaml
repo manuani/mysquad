@@ -452,6 +452,15 @@ importers:
 
   services/notification:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.32.1
+        version: 0.32.1
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors
@@ -477,6 +486,12 @@ importers:
 
   services/performance:
     dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors
