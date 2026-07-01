@@ -138,7 +138,7 @@ describe('AgentRuntime', () => {
   });
 
   describe('generateRosterContributions', () => {
-    it('dispatches to every persona in parallel and returns each contribution', async () => {
+    it('dispatches to every persona in parallel and returns each contribution (gate skipped)', async () => {
       const routingService = makeFakeRoutingService(async (request) => ({
         content: `response to: ${request.systemPrompt.slice(0, 20)}`,
         model: 'fake-model',
@@ -151,6 +151,7 @@ describe('AgentRuntime', () => {
         TENANT_CONTEXT,
         [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
         { message: 'Should we raise now or wait?' },
+        { skipGate: true },
       );
 
       expect(completeSpy).toHaveBeenCalledTimes(3);
@@ -171,6 +172,7 @@ describe('AgentRuntime', () => {
         TENANT_CONTEXT,
         [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
         { message: 'hello' },
+        { skipGate: true },
       );
 
       const sarahPrompt = capturedPrompts[0] as string;
@@ -198,6 +200,7 @@ describe('AgentRuntime', () => {
         TENANT_CONTEXT,
         [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
         { message: 'hello' },
+        { skipGate: true },
       );
 
       expect(results).toHaveLength(3);
@@ -207,6 +210,70 @@ describe('AgentRuntime', () => {
       expect(failed?.contribution).toBeNull();
       expect(succeeded).toHaveLength(2);
       expect(succeeded.every((r) => r.contribution !== null)).toBe(true);
+    });
+
+    describe('response gate', () => {
+      it('skips a persona whose gate returns shouldRespond=false', async () => {
+        let callCount = 0;
+        const routingService = makeFakeRoutingService(async () => {
+          callCount += 1;
+          // Gate calls return low-relevance JSON; contribution calls return content
+          if (callCount <= 3) {
+            // Gate call: first persona irrelevant, others relevant
+            if (callCount === 1) {
+              return { content: '{"shouldRespond":false,"relevanceScore":0.1,"reason":"not a finance topic"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+            }
+            return { content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"highly relevant"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+          }
+          return { content: 'contribution text', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        });
+
+        const runtime = new AgentRuntime(routingService);
+        const results = await runtime.generateRosterContributions(
+          TENANT_CONTEXT,
+          [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA],
+          { message: 'What marketing channels should we prioritize?' },
+        );
+
+        expect(results).toHaveLength(3);
+        expect(results[0]!.skipped).toBe(true);
+        expect(results[0]!.contribution).toBeNull();
+        expect(results[1]!.skipped).toBe(false);
+        expect(results[2]!.skipped).toBe(false);
+      });
+
+      it('defaults to shouldRespond=true when gate response is not valid JSON', async () => {
+        const routingService = makeFakeRoutingService(async () => ({
+          content: 'not json at all',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        }));
+
+        const runtime = new AgentRuntime(routingService);
+        const gate = await runtime.checkShouldRespond(TENANT_CONTEXT, SARAH_CFO_PERSONA, 'hello');
+
+        expect(gate.shouldRespond).toBe(true);
+        expect(gate.relevanceScore).toBe(1.0);
+      });
+
+      it('exposes gateResult in each roster entry', async () => {
+        const routingService = makeFakeRoutingService(async () => ({
+          content: '{"shouldRespond":true,"relevanceScore":0.8,"reason":"relevant"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        }));
+
+        const runtime = new AgentRuntime(routingService);
+        const results = await runtime.generateRosterContributions(
+          TENANT_CONTEXT,
+          [SARAH_CFO_PERSONA],
+          { message: 'What is our burn rate?' },
+        );
+
+        expect(results[0]!.gateResult).toBeDefined();
+        expect(results[0]!.gateResult?.shouldRespond).toBe(true);
+        expect(results[0]!.gateResult?.relevanceScore).toBe(0.8);
+      });
     });
   });
 });

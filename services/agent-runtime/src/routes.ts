@@ -124,6 +124,8 @@ export function buildAgentRuntimeRouter(routingService: RoutingService, log: Log
           role: r.persona.role,
           contribution: r.contribution,
           error: r.error,
+          skipped: r.skipped,
+          gateResult: r.gateResult,
         })),
       });
     } catch (err) {

@@ -67,6 +67,17 @@ export interface AgentContribution {
   readonly generatedAt: string;
 }
 
+/** Result of the fast relevance gate applied before a full contribution. */
+export interface ResponseGateResult {
+  readonly shouldRespond: boolean;
+  /** 0–1 relevance score as judged by the gate LLM. */
+  readonly relevanceScore: number;
+  readonly reason: string;
+}
+
+/** Minimum relevance score for a persona to contribute (overridable per-persona). */
+const DEFAULT_GATE_THRESHOLD = 0.4;
+
 function assembleSystemPrompt(
   persona: AgentPersona,
   brainContext?: readonly string[],
@@ -89,6 +100,59 @@ function assembleSystemPrompt(
 
 export class AgentRuntime {
   constructor(private readonly routingService: RoutingService) {}
+
+  /**
+   * Fast gate: asks Claude Haiku whether this persona's role is relevant to
+   * the founder's message. Returns a structured relevance decision in JSON.
+   * On any parse error, defaults to shouldRespond=true so failures are never
+   * silent silences.
+   */
+  async checkShouldRespond(
+    tenantContext: TenantContext,
+    persona: AgentPersona,
+    message: string,
+    priorTurns?: readonly ConversationTurn[],
+  ): Promise<ResponseGateResult> {
+    const recentContext =
+      priorTurns && priorTurns.length > 0
+        ? priorTurns
+            .slice(-4)
+            .map((t) => `${t.role === 'user' ? 'Founder' : 'AI'}: ${t.content.slice(0, 120)}`)
+            .join('\n')
+        : '';
+
+    const gatePrompt = `You are a relevance classifier. Decide whether a ${persona.role} named ${persona.name} should contribute to this conversation.
+
+${recentContext ? `Recent context:\n${recentContext}\n\n` : ''}Founder's latest message: "${message}"
+
+Respond with ONLY valid JSON (no markdown, no explanation):
+{"shouldRespond": true|false, "relevanceScore": 0.0-1.0, "reason": "one sentence"}
+
+A ${persona.role} should respond when the topic directly touches their domain. Score > 0.4 means they should respond.`;
+
+    try {
+      const result = await this.routingService.complete(tenantContext, {
+        systemPrompt: 'You are a relevance classifier. Output only valid JSON.',
+        messages: [{ role: 'user', content: gatePrompt }],
+        maxTokens: 80,
+      });
+
+      const parsed = JSON.parse(result.content.trim()) as {
+        shouldRespond: boolean;
+        relevanceScore: number;
+        reason: string;
+      };
+
+      return {
+        shouldRespond: Boolean(parsed.shouldRespond),
+        relevanceScore: typeof parsed.relevanceScore === 'number' ? parsed.relevanceScore : 0.5,
+        reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+      };
+    } catch {
+      // Parse failure → allow contribution (fail open)
+      return { shouldRespond: true, relevanceScore: 1.0, reason: 'gate parse failed, defaulting to respond' };
+    }
+  }
 
   /**
    * Generates a single agent's contribution to the conversation by
@@ -122,38 +186,96 @@ export class AgentRuntime {
   }
 
   /**
-   * Dispatches the same founder input to multiple personas in parallel
-   * and returns every contribution, each independently generated and
-   * persona-distinct. This is deliberately NOT the ADR 011 hand-raise/
-   * collision-arbiter pipeline (Phase 4, not yet implemented) — it is the
-   * smallest unit of proof for the Strategic Vision's core claim that
-   * this is "a meeting with a team," not a single chatbot: multiple
-   * agents responding to the same input, independently, in their own
-   * voice. A failure in one agent's contribution does not block the
-   * others — each promise is awaited individually so one provider error
-   * surfaces as an error entry for that agent, not a failure of the
-   * whole roster call.
+   * Dispatches the same founder input to multiple personas in parallel.
+   *
+   * Each persona first goes through a fast Haiku relevance gate
+   * (`checkShouldRespond`). Personas whose relevance score falls below
+   * `DEFAULT_GATE_THRESHOLD` are skipped — their entry in the result
+   * carries `skipped: true` and the gate's reason. This eliminates the
+   * round-robin feel where every agent always speaks regardless of
+   * whether the topic is in their lane.
+   *
+   * Gate failures (network error, JSON parse failure) default to
+   * shouldRespond=true so a broken gate never silently silences an agent.
+   *
+   * Full contributions for passing personas still run in parallel.
    */
   async generateRosterContributions(
     tenantContext: TenantContext,
     personas: readonly AgentPersona[],
     input: AgentContributionInput,
-  ): Promise<Array<{ persona: AgentPersona; contribution: AgentContribution | null; error: string | null }>> {
-    const results = await Promise.allSettled(
-      personas.map((persona) =>
-        this.generateContribution(tenantContext, persona, {
-          ...input,
-          teammates: personas.filter((p) => p.id !== persona.id).map((p) => ({ name: p.name, role: p.role })),
-        }),
-      ),
-    );
+    options?: { gateThreshold?: number; skipGate?: boolean },
+  ): Promise<
+    Array<{
+      persona: AgentPersona;
+      contribution: AgentContribution | null;
+      error: string | null;
+      skipped: boolean;
+      gateResult?: ResponseGateResult;
+    }>
+  > {
+    const threshold = options?.gateThreshold ?? DEFAULT_GATE_THRESHOLD;
 
-    return results.map((result, index) => {
-      const persona = personas[index] as AgentPersona;
-      if (result.status === 'fulfilled') {
-        return { persona, contribution: result.value, error: null };
+    // Phase 1: run all gates in parallel (cheap Haiku calls, ~80 tokens each)
+    const gateResults = options?.skipGate
+      ? personas.map((): ResponseGateResult => ({ shouldRespond: true, relevanceScore: 1.0, reason: 'gate skipped' }))
+      : await Promise.all(
+          personas.map((persona) =>
+            this.checkShouldRespond(tenantContext, persona, input.message, input.priorTurns),
+          ),
+        );
+
+    // Phase 2: run full contributions only for personas that passed the gate
+    const output: Array<{
+      persona: AgentPersona;
+      contribution: AgentContribution | null;
+      error: string | null;
+      skipped: boolean;
+      gateResult?: ResponseGateResult;
+    }> = [];
+
+    const activePersonas: AgentPersona[] = [];
+    const activeIndices: number[] = [];
+
+    personas.forEach((persona, i) => {
+      const gate = gateResults[i]!;
+      if (!gate.shouldRespond || gate.relevanceScore < threshold) {
+        output[i] = { persona, contribution: null, error: null, skipped: true, gateResult: gate };
+      } else {
+        activePersonas.push(persona);
+        activeIndices.push(i);
+        // placeholder to be filled after contributions run
+        output[i] = { persona, contribution: null, error: null, skipped: false, gateResult: gate };
       }
-      return { persona, contribution: null, error: String(result.reason) };
     });
+
+    if (activePersonas.length > 0) {
+      const contributions = await Promise.allSettled(
+        activePersonas.map((persona) =>
+          this.generateContribution(tenantContext, persona, {
+            ...input,
+            teammates: personas.filter((p) => p.id !== persona.id).map((p) => ({ name: p.name, role: p.role })),
+          }),
+        ),
+      );
+
+      contributions.forEach((result, j) => {
+        const idx = activeIndices[j]!;
+        const persona = activePersonas[j]!;
+        if (result.status === 'fulfilled') {
+          output[idx] = { ...output[idx]!, persona, contribution: result.value, error: null };
+        } else {
+          output[idx] = { ...output[idx]!, persona, contribution: null, error: String(result.reason) };
+        }
+      });
+    }
+
+    return output as Array<{
+      persona: AgentPersona;
+      contribution: AgentContribution | null;
+      error: string | null;
+      skipped: boolean;
+      gateResult?: ResponseGateResult;
+    }>;
   }
 }
