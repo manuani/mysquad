@@ -1,6 +1,6 @@
 # ADR 012: Hosting on AWS, primary region in India
 
-- Status: Accepted
+- Status: Accepted, compute amended 2026-06-29 (see "Amendment" below)
 - Date: 2026-06-28
 - Deciders: founder, lead engineer (pending sign-off)
 
@@ -83,7 +83,7 @@ Service mapping for the platform's five data stores (System Architecture
 
 | Concern | AWS service | Notes |
 | --- | --- | --- |
-| API server pool compute | App Runner (start), Fargate (upgrade path) | App Runner first for lowest ops burden; move to Fargate only if networking control needs exceed what App Runner exposes |
+| API server pool compute | ECS on Fargate + ALB | App Runner was the original choice but is closed to new AWS customers as of 2026-04-30 (see Amendment below) |
 | Postgres + pgvector | RDS for PostgreSQL | pgvector supported on RDS Postgres 15+ |
 | Redis | ElastiCache for Redis | |
 | Object store | S3 | Zero-friction match to existing `@aws-sdk/client-s3` code and MinIO-based local dev parity (ADR 010) |
@@ -117,6 +117,42 @@ factor for a team without a dedicated infra hire.
   by region selection, not by provider choice — worth confirming with
   counsel during Sprint 1.1.3 that residency obligations are fully met by
   "data stored in `ap-south-1`" rather than requiring anything further.
+
+## Amendment — 2026-06-29: App Runner replaced by ECS Fargate + ALB
+
+Discovered while running the actual first `terraform apply` against a
+real AWS account: **AWS App Runner stopped accepting new customers as of
+April 30, 2026.** This is not a quota, activation delay, or IAM gap — the
+service is closed to any account that wasn't already using it. The
+`SubscriptionRequiredException` returned by `CreateVpcConnector` is AWS's
+permanent signal for this, not a transient one. AWS's own guidance
+(returned in-console) points to **Amazon ECS with Fargate** (specifically
+naming "ECS Express Mode" as the closest equivalent low-ops experience)
+as the replacement.
+
+This was not knowable when the original decision was made — App Runner
+was open to new customers as of this ADR's original date one day
+earlier. It's exactly the kind of platform-availability change the
+original "Revisit triggers" section anticipated in spirit ("if AWS...
+service availability... changes materially") even though no one
+predicted this specific mechanism.
+
+**Updated decision:** compute is **ECS on Fargate**, fronted by an
+Application Load Balancer (`infra/terraform/ecs.tf`), not App Runner.
+This is the upgrade path the original ADR already named as acceptable
+("Fargate as a documented upgrade path if more networking control is
+needed later") — moved up from "later" to "now," for a different reason
+than originally anticipated (closed access, not a networking-control
+need). The service mapping table below is updated accordingly. Nothing
+else in this ADR's reasoning (region, RDS, ElastiCache, S3, Neo4j AuraDB)
+changes.
+
+Consequence for ops burden: Fargate + ALB is a real increase in
+Terraform/networking surface area versus App Runner (target groups,
+listener, task definitions, an ECS cluster) — exactly the tradeoff this
+ADR originally weighed App Runner against and chose to avoid. That
+tradeoff is no longer available to choose; this is the cost of the
+platform change, not a reconsideration of the original preference.
 
 ## Revisit triggers
 

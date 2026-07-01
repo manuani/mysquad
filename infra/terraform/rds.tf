@@ -22,8 +22,13 @@ resource "aws_db_subnet_group" "main" {
 
 resource "aws_db_instance" "postgres" {
   identifier     = "${var.project_name}-${var.environment}-postgres"
-  engine         = "postgres"
-  engine_version = "16.4"
+  engine = "postgres"
+  # 16.4 (this file's original value) is not offered in ap-south-1 as of
+  # this apply — `aws rds describe-db-engine-versions` showed 16.9-16.14
+  # available. Pinned to 16.9 (oldest available in the 16.x line) rather
+  # than "latest" so engine_version stays a stable, intentional choice
+  # instead of drifting on every apply as AWS adds newer minors.
+  engine_version = "16.9"
 
   instance_class        = var.db_instance_class
   allocated_storage     = var.db_allocated_storage_gb
@@ -38,11 +43,16 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
 
-  # Staging, not production: skip the final snapshot on destroy, keep
-  # backup retention short. Revisit when this environment graduates past
-  # the design-partner phase (Strategic Vision §8.1/§8.2).
+  # Staging, not production: skip the final snapshot on destroy. Backup
+  # retention is 0 (disabled) — new AWS accounts in the free-tier
+  # promotional period reject any non-zero retention period
+  # (FreeTierRestrictionError, found applying this exact configuration).
+  # Revisit once this account ages out of that restriction and when this
+  # environment graduates past the design-partner phase (Strategic Vision
+  # §8.1/§8.2) — a staging/demo environment with no real customer data
+  # doesn't strictly need automated backups, but production will.
   skip_final_snapshot     = true
-  backup_retention_period = 3
+  backup_retention_period = 0
   multi_az                = false
 
   tags = { Name = "${var.project_name}-${var.environment}-postgres" }

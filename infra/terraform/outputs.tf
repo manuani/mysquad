@@ -1,6 +1,16 @@
 output "api_server_url" {
-  description = "Public URL of the deployed API server."
-  value       = aws_apprunner_service.api_server.service_url
+  description = "Public URL of the deployed API server (ALB DNS name — see ADR 012's 2026-06-29 amendment for why this is an ALB, not an App Runner URL)."
+  value       = "http://${aws_lb.main.dns_name}"
+}
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name, for `aws ecs describe-services`."
+  value       = aws_ecs_cluster.main.name
+}
+
+output "ecs_service_name" {
+  description = "ECS service name, for `aws ecs describe-services`."
+  value       = aws_ecs_service.api_server.name
 }
 
 output "ecr_repository_url" {

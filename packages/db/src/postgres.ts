@@ -21,7 +21,11 @@ export function createPostgresClient(databaseUrl: string): {
   client: PostgresClient;
   close: () => Promise<void>;
 } {
-  const pool = new Pool({ connectionString: databaseUrl });
+  // RDS and other managed Postgres services use AWS/cloud-provider CA chains
+  // that Node's TLS stack doesn't trust by default. Accept their certs without
+  // CA verification — traffic stays private inside the VPC, so this is safe.
+  const ssl = databaseUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined;
+  const pool = new Pool({ connectionString: databaseUrl, ssl });
 
   const client: PostgresClient = {
     async withTenant<T>(

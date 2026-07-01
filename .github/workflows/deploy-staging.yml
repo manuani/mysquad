@@ -105,10 +105,19 @@ jobs:
           docker push "$IMAGE_URI:latest"
           echo "image_uri=$IMAGE_URI:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-  notify-deployment:
-    name: Confirm App Runner picked up the new image
+  deploy-to-ecs:
+    name: Force a new ECS deployment and wait for it to stabilize
+    # ECS does not watch ECR for new image digests the way App Runner's
+    # auto_deployments_enabled did (ADR 012's 2026-06-29 amendment — App
+    # Runner was replaced by ECS Fargate after it turned out to be closed
+    # to new AWS customers). Pushing a new :latest image is not enough on
+    # its own; the service needs an explicit forced redeployment to pick
+    # it up.
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      ECS_CLUSTER: voai-staging
+      ECS_SERVICE: voai-staging-api-server
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -117,22 +126,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Wait for App Runner deployment
+      - name: Force new deployment
         run: |
-          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='voai-staging-api-server'].ServiceArn" --output text)
-          if [ -z "$SERVICE_ARN" ]; then
-            echo "::warning::App Runner service not found — has terraform apply run yet? Image was pushed to ECR regardless (${{ needs.build-and-push.outputs.image_uri }})."
+          if ! aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" --query "services[0].serviceName" --output text 2>/dev/null | grep -q "$ECS_SERVICE"; then
+            echo "::warning::ECS service not found — has terraform apply run yet? Image was pushed to ECR regardless (${{ needs.build-and-push.outputs.image_uri }})."
             exit 0
           fi
-          echo "Waiting for App Runner to finish deploying the new image (auto_deployments_enabled picks it up from the :latest digest change)..."
-          for _ in $(seq 1 30); do
-            STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
-            echo "Status: $STATUS"
-            if [ "$STATUS" = "RUNNING" ]; then
-              URL=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.ServiceUrl" --output text)
-              echo "Deployed: https://$URL"
-              exit 0
-            fi
-            sleep 20
-          done
-          echo "::warning::Timed out waiting for App Runner to report RUNNING — check the console."
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" --force-new-deployment > /dev/null
+          echo "Waiting for the new deployment to stabilize (aws ecs wait services-stable)..."
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+          echo "Deployment stable."

@@ -1,5 +1,12 @@
 -- Up Migration
 --
+-- Extensions needed by this migration (vector type for brain embeddings).
+-- IF NOT EXISTS makes this idempotent — safe whether or not the bootstrap
+-- script or local docker init already created them.
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+--
 -- Brain Service schema (Sprint 3.1, Deliverable 3.1.1: Brain schema and
 -- storage). Per System Architecture and Platform Specification, the brain
 -- captures founder knowledge across eight domains: company_profile,

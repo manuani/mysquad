@@ -106,33 +106,31 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 # --- Security groups ---
-
-resource "aws_security_group" "app_runner_vpc_connector" {
-  name_prefix = "${var.project_name}-${var.environment}-apprunner-"
-  description = "App Runner VPC connector's outbound-only security group."
-  vpc_id      = aws_vpc.main.id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project_name}-${var.environment}-apprunner-sg" }
-}
+#
+# ECS tasks (ecs.tf) run directly inside this VPC's private subnets (no
+# VPC-connector indirection like App Runner needed) — the task security
+# group below is what RDS/Redis allow inbound from. See ecs.tf for the
+# ALB and ECS task security groups themselves; defined there since
+# they're ECS/ALB-specific, referenced here for RDS/Redis ingress.
 
 resource "aws_security_group" "rds" {
   name_prefix = "${var.project_name}-${var.environment}-rds-"
-  description = "Postgres — inbound only from the App Runner VPC connector."
+  # NOTE: top-level `description` is immutable on AWS security groups —
+  # changing this string forces Terraform to destroy and recreate the
+  # whole resource, which got stuck for 15 minutes mid-apply because
+  # ElastiCache/RDS still referenced the old one (DependencyViolation).
+  # Left at its original text on purpose; the ingress rule's own
+  # `description` below (and `security_groups` source) update in place
+  # without forcing replacement, so that's where the real change lives.
+  description = "Postgres - inbound only from the App Runner VPC connector."
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Postgres from App Runner"
+    description     = "Postgres from ECS tasks"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.app_runner_vpc_connector.id]
+    security_groups = [aws_security_group.ecs_tasks.id]
   }
 
   egress {
@@ -147,15 +145,17 @@ resource "aws_security_group" "rds" {
 
 resource "aws_security_group" "redis" {
   name_prefix = "${var.project_name}-${var.environment}-redis-"
-  description = "Redis — inbound only from the App Runner VPC connector."
+  # See the matching note on aws_security_group.rds above — top-level
+  # `description` left unchanged on purpose to avoid forced replacement.
+  description = "Redis - inbound only from the App Runner VPC connector."
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Redis from App Runner"
+    description     = "Redis from ECS tasks"
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
-    security_groups = [aws_security_group.app_runner_vpc_connector.id]
+    security_groups = [aws_security_group.ecs_tasks.id]
   }
 
   egress {
