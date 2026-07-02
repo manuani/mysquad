@@ -66,6 +66,29 @@
   .bubble.advocate .name { color: #993c1d; }
   .bubble.error { background: #fcebeb; color: #791f1f; border: 1px solid #f09595; }
 
+  /* Hand-raise panel */
+  .raise-hand-bar {
+    border-top: 1px solid #e4e2da;
+    background: #fffbec;
+    padding: 10px 24px;
+    display: none;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .raise-hand-bar.visible { display: flex; }
+  .raise-hand-label { font-size: 12px; font-weight: 600; color: #5a4a00; white-space: nowrap; }
+  .raise-hand-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff3cd; border: 1px solid #e6c44a; border-radius: 20px;
+    padding: 5px 12px; font-size: 12px; cursor: pointer; font-weight: 500;
+    transition: background 0.15s;
+  }
+  .raise-hand-chip:hover { background: #ffe8a0; }
+  .raise-hand-chip .score { font-size: 10px; color: #7a5f00; }
+  .raise-hand-chip .dismiss { color: #aaa; font-size: 11px; margin-left: 4px; }
+  .raise-hand-chip .dismiss:hover { color: #888; }
+
   .composer { border-top: 1px solid #e4e2da; padding: 16px 24px; background: #fff; display: flex; gap: 10px; }
   .composer textarea {
     flex: 1; resize: none; min-height: 48px; max-height: 140px;
@@ -129,6 +152,13 @@
       <a href="#" id="switch-account" style="font-size:12px; color:#888780;">Switch account</a>
     </div>
     <div class="transcript" id="transcript"></div>
+
+    <!-- Hand-raise bar: appears when a skipped persona urgently wants to add something -->
+    <div class="raise-hand-bar" id="raise-hand-bar">
+      <span class="raise-hand-label">✋ Wants to add something:</span>
+      <div id="raise-hand-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    </div>
+
     <div class="composer">
       <textarea id="composer-input" placeholder="Ask your team something..."></textarea>
       <button id="composer-send">Send</button>
@@ -140,6 +170,9 @@
 const API = '';
 let session = loadValidSession();
 let meetingSessionId = null;
+let sseSource = null;
+// Map of personaId -> { name, role, score, reason } for pending hand-raises
+const pendingRaises = new Map();
 
 /**
  * Validates the cached session has every field a real signup/signin
@@ -250,9 +283,103 @@ async function loadBrainItems() {
   }
 }
 
+function renderRaiseHandChips() {
+  const bar = document.getElementById('raise-hand-bar');
+  const chips = document.getElementById('raise-hand-chips');
+  chips.innerHTML = '';
+  if (pendingRaises.size === 0) {
+    bar.classList.remove('visible');
+    return;
+  }
+  bar.classList.add('visible');
+  for (const [personaId, info] of pendingRaises) {
+    const chip = document.createElement('button');
+    chip.className = 'raise-hand-chip';
+    chip.innerHTML =
+      escapeHtml(info.name) +
+      ' <span class="score">' + Math.round(info.score * 100) + '%</span>' +
+      ' <span class="dismiss" data-pid="' + escapeHtml(personaId) + '" title="Dismiss">✕</span>';
+
+    // Click on the chip (but not the ✕) → pull in that persona's contribution
+    chip.addEventListener('click', async (e) => {
+      const dismiss = e.target.closest('.dismiss');
+      if (dismiss) {
+        pendingRaises.delete(dismiss.dataset.pid);
+        renderRaiseHandChips();
+        return;
+      }
+      pendingRaises.delete(personaId);
+      renderRaiseHandChips();
+      await pullPersonaContribution(info);
+    });
+
+    chips.appendChild(chip);
+  }
+}
+
+async function pullPersonaContribution(info) {
+  const lastUserMsg = [...document.querySelectorAll('.bubble.founder')]
+    .map(b => b.textContent).filter(Boolean).at(-1) || '';
+
+  const pending = addBubble('agent', info.name, info.role, '');
+  pending.querySelector('div:last-child').textContent = 'Thinking...';
+
+  try {
+    const result = await api('/v1/agent-runtime/contributions', {
+      method: 'POST',
+      body: JSON.stringify({ message: lastUserMsg }),
+    });
+    pending.querySelector('div:last-child').innerHTML =
+      escapeHtml(result.content).replace(/\n/g, '<br>');
+    if (meetingSessionId) {
+      api('/v1/meeting/sessions/' + meetingSessionId + '/transcript', {
+        method: 'POST',
+        body: JSON.stringify({ speakerType: 'agent', speakerName: info.name, content: result.content }),
+      }).catch(() => {});
+    }
+  } catch (e) {
+    pending.className = 'bubble error';
+    pending.querySelector('div:last-child').textContent = 'Could not fetch contribution: ' + e.message;
+  }
+}
+
+function connectSse(sessionId) {
+  if (sseSource) { sseSource.close(); sseSource = null; }
+
+  // EventSource doesn't support custom headers; auth headers are sent via
+  // query params here for the demo only. In production this would use a
+  // short-lived signed token instead.
+  const params = new URLSearchParams({
+    'x-tenant-id': session.tenantId,
+    'x-user-id': session.userId,
+    'x-session-id': session.sessionToken,
+    'x-user-type': 'founder',
+  });
+
+  // We pass auth as query params since EventSource doesn't support headers.
+  // The meeting SSE route reads them from req.query in dev mode.
+  sseSource = new EventSource(API + '/v1/meeting/sessions/' + sessionId + '/events?' + params);
+
+  sseSource.addEventListener('raise-hand', (e) => {
+    const data = JSON.parse(e.data);
+    pendingRaises.set(data.personaId, {
+      name: data.personaName,
+      role: data.personaRole,
+      score: data.relevanceScore,
+      reason: data.reason,
+    });
+    renderRaiseHandChips();
+  });
+
+  sseSource.onerror = () => {
+    // Browser will auto-reconnect; no action needed
+  };
+}
+
 async function startMeetingSession() {
   const result = await api('/v1/meeting/sessions', { method: 'POST', body: JSON.stringify({}) });
   meetingSessionId = result.id;
+  connectSse(meetingSessionId);
 }
 
 async function sendMessage() {
@@ -278,7 +405,7 @@ async function sendMessage() {
   try {
     const result = await api('/v1/agent-runtime/contributions/roster', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, sessionId: meetingSessionId }),
     });
     pending.remove();
     for (const c of result.contributions) {
@@ -305,9 +432,12 @@ async function sendMessage() {
 
 document.getElementById('switch-account').addEventListener('click', (e) => {
   e.preventDefault();
+  if (sseSource) { sseSource.close(); sseSource = null; }
   localStorage.removeItem('voai_demo_session');
   session = null;
   meetingSessionId = null;
+  pendingRaises.clear();
+  renderRaiseHandChips();
   document.getElementById('transcript').innerHTML = '';
   showGate();
 });

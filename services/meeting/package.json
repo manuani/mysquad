@@ -32,6 +32,7 @@
     "@voai/errors": "workspace:*",
     "@voai/db": "workspace:*",
     "@voai/auth-context": "workspace:*",
+    "@voai/events": "workspace:*",
     "express": "^4.21.0"
   }
 }

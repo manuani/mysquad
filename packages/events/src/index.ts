@@ -55,3 +55,17 @@ class InProcessEventBus implements EventBus {
 export function createInProcessEventBus(): EventBus {
   return new InProcessEventBus();
 }
+
+// ── Typed event definitions ─────────────────────────────────────────────────
+
+export interface RaiseHandEvent extends PlatformEvent {
+  readonly type: 'raise-hand';
+  readonly payload: {
+    readonly sessionId: string;
+    readonly personaId: string;
+    readonly personaName: string;
+    readonly personaRole: string;
+    readonly relevanceScore: number;
+    readonly reason: string;
+  };
+}

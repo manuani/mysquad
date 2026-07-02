@@ -19,6 +19,7 @@ import type { Logger } from '@voai/types';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import { startSession, getSession, endSession, type SessionMode } from './sessions.js';
 import { appendTranscriptEntry, getTranscript, type SpeakerType } from './transcript.js';
+import type { SseManager } from './sse.js';
 
 function requireParam(req: Request, name: string): string {
   const value = req.params[name];
@@ -53,7 +54,7 @@ function isOneOf<T extends string>(values: readonly T[], value: unknown): value 
   return typeof value === 'string' && (values as readonly string[]).includes(value);
 }
 
-export function buildMeetingRouter(postgres: PostgresClient, log: Logger): Router {
+export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: SseManager): Router {
   const router = Router();
 
   router.post('/sessions', async (req: Request, res: Response) => {
@@ -127,6 +128,57 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger): Route
     } catch (err) {
       handleError(err, res, log);
     }
+  });
+
+  /**
+   * SSE stream for a meeting session. The browser connects once and stays
+   * connected for the duration of the meeting. The server pushes `raise-hand`
+   * events whenever a persona wants to add something. No polling needed.
+   *
+   * Browser usage:
+   *   const es = new EventSource(`/v1/meeting/sessions/${id}/events`, {
+   *     headers: { 'x-tenant-id': ..., 'x-user-id': ..., ... }
+   *   });
+   *   es.addEventListener('raise-hand', e => { ... JSON.parse(e.data) ... });
+   */
+  /**
+   * SSE stream for a meeting session.
+   *
+   * Auth: EventSource does not support custom request headers in browsers,
+   * so credentials are accepted from either headers (API clients) or query
+   * params (browser EventSource). Query params take priority when present.
+   * In production this would use a short-lived signed room token instead.
+   */
+  router.get('/sessions/:id/events', (req: Request, res: Response) => {
+    const sessionId = requireParam(req, 'id');
+
+    // Accept auth from query params (EventSource) or headers (API clients)
+    const q = req.query as Record<string, string>;
+    const tenantId  = q['x-tenant-id']  ?? req.header('x-tenant-id')  ?? '';
+    const userId    = q['x-user-id']    ?? req.header('x-user-id')    ?? '';
+    const userType  = q['x-user-type']  ?? req.header('x-user-type')  ?? 'founder';
+    const sessionTk = q['x-session-id'] ?? req.header('x-session-id') ?? '';
+
+    if (!tenantId || !userId || !sessionTk) {
+      res.status(401).json({ error: 'UNAUTHORIZED', message: 'missing tenant context' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    res.write(': connected\n\n');
+
+    sse.add(sessionId, res);
+    log.info('SSE client connected', { sessionId, tenantId, count: sse.connectionCount(sessionId) });
+
+    req.on('close', () => {
+      sse.remove(sessionId, res);
+      log.info('SSE client disconnected', { sessionId, count: sse.connectionCount(sessionId) });
+    });
   });
 
   return router;

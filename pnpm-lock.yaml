@@ -430,6 +430,9 @@ importers:
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@voai/events':
+        specifier: workspace:*
+        version: link:../../packages/events
       '@voai/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry

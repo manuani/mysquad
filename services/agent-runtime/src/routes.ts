@@ -17,7 +17,7 @@ import { buildTenantContext, type TenantContext } from '@voai/auth-context';
 import type { PostgresClient } from '@voai/db';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import type { RoutingService } from '@voai/routing';
-import type { Logger } from '@voai/types';
+import type { EventBus, Logger } from '@voai/types';
 import { AgentRuntime } from './agent-runtime.js';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
@@ -60,7 +60,12 @@ function handleError(err: unknown, res: Response, log: Logger): void {
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
 }
 
-export function buildAgentRuntimeRouter(routingService: RoutingService, log: Logger, postgres: PostgresClient): Router {
+export function buildAgentRuntimeRouter(
+  routingService: RoutingService,
+  log: Logger,
+  postgres: PostgresClient,
+  events: EventBus,
+): Router {
   const router = Router();
   const runtime = new AgentRuntime(routingService);
 
@@ -101,10 +106,11 @@ export function buildAgentRuntimeRouter(routingService: RoutingService, log: Log
   router.post('/contributions/roster', async (req: Request, res: Response) => {
     try {
       const tenantContext = tenantContextFromRequest(req);
-      const body = req.body as { message?: unknown };
+      const body = req.body as { message?: unknown; sessionId?: unknown };
       if (typeof body.message !== 'string' || body.message.trim().length === 0) {
         throw new ValidationError('message is required');
       }
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
 
       const brainContext = await fetchBrainContextForMessage(tenantContext, postgres, body.message).catch(
         (err: unknown) => {
@@ -128,6 +134,27 @@ export function buildAgentRuntimeRouter(routingService: RoutingService, log: Log
           gateResult: r.gateResult,
         })),
       });
+
+      // Observer loop: fire async after response is sent.
+      // For each skipped persona, check if they urgently want to add something
+      // now that they've "heard" what the others said. Non-blocking.
+      if (sessionId) {
+        const skipped = results
+          .filter((r) => r.skipped && r.gateResult)
+          .map((r) => ({ persona: r.persona, gateResult: r.gateResult! }));
+
+        if (skipped.length > 0) {
+          const contributionsSoFar = results
+            .filter((r) => r.contribution !== null)
+            .map((r) => r.contribution!.content);
+
+          runtime
+            .observeSkippedPersonas(tenantContext, skipped, { message: body.message, contributionsSoFar }, sessionId, events)
+            .catch((err: unknown) => {
+              log.warn('observer loop error (non-blocking)', { err: String(err) });
+            });
+        }
+      }
     } catch (err) {
       handleError(err, res, log);
     }

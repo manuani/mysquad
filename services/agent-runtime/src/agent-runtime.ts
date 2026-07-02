@@ -20,6 +20,7 @@
 
 import type { TenantContext } from '@voai/auth-context';
 import type { LlmMessage, RoutingService } from '@voai/routing';
+import type { EventBus } from '@voai/types';
 import type { AgentPersona } from './personas/sarah-cfo.js';
 
 export interface ConversationTurn {
@@ -277,5 +278,82 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       skipped: boolean;
       gateResult?: ResponseGateResult;
     }>;
+  }
+
+  /**
+   * Observer loop — runs asynchronously after a roster call for each persona
+   * that was skipped by the gate. Re-scores them with a higher bar ("do you
+   * have something *urgent* to add, given what your teammates just said?").
+   * Personas that score ≥ 0.65 publish a `raise-hand` event on the EventBus,
+   * which the meeting module fans out to connected SSE clients.
+   *
+   * This is fire-and-forget: errors are swallowed so they never affect the
+   * caller. Non-blocking by design — the roster response has already been
+   * returned to the client before this runs.
+   */
+  async observeSkippedPersonas(
+    tenantContext: TenantContext,
+    skippedPersonas: ReadonlyArray<{ persona: AgentPersona; gateResult: ResponseGateResult }>,
+    input: { message: string; priorTurns?: readonly ConversationTurn[]; contributionsSoFar: string[] },
+    sessionId: string,
+    events: EventBus,
+  ): Promise<void> {
+    const OBSERVER_THRESHOLD = 0.65;
+
+    await Promise.allSettled(
+      skippedPersonas.map(async ({ persona }) => {
+        const alreadySaid =
+          input.contributionsSoFar.length > 0
+            ? `\n\nYour teammates already said:\n${input.contributionsSoFar.map((c, i) => `${i + 1}. ${c.slice(0, 200)}`).join('\n')}`
+            : '';
+
+        const observerPrompt = `You are a relevance classifier for ${persona.name}, ${persona.role}.
+
+The founder just said: "${input.message}"${alreadySaid}
+
+Given everything that was just said, does ${persona.name} have something *critically important* to add that was NOT covered? Score 0-1. Only urgent, non-redundant insights score above 0.65.
+
+Respond with ONLY valid JSON:
+{"shouldRespond": true|false, "relevanceScore": 0.0-1.0, "reason": "one sentence"}`;
+
+        const result = await this.routingService.complete(tenantContext, {
+          systemPrompt: 'You are a relevance classifier. Output only valid JSON.',
+          messages: [{ role: 'user', content: observerPrompt }],
+          maxTokens: 80,
+        });
+
+        let gate: ResponseGateResult;
+        try {
+          const parsed = JSON.parse(result.content.trim()) as {
+            shouldRespond: boolean;
+            relevanceScore: number;
+            reason: string;
+          };
+          gate = {
+            shouldRespond: Boolean(parsed.shouldRespond),
+            relevanceScore: typeof parsed.relevanceScore === 'number' ? parsed.relevanceScore : 0,
+            reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+          };
+        } catch {
+          return; // parse failed — stay silent, don't raise hand on garbage
+        }
+
+        if (gate.shouldRespond && gate.relevanceScore >= OBSERVER_THRESHOLD) {
+          await events.publish({
+            type: 'raise-hand',
+            tenantId: tenantContext.tenantId,
+            timestamp: new Date().toISOString(),
+            payload: {
+              sessionId,
+              personaId: persona.id,
+              personaName: persona.name,
+              personaRole: persona.role,
+              relevanceScore: gate.relevanceScore,
+              reason: gate.reason,
+            },
+          });
+        }
+      }),
+    );
   }
 }

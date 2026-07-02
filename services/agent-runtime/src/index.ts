@@ -54,7 +54,7 @@ export const agent_runtimeModule: ModuleDefinition = {
     // avoid a circular dependency on @voai/db.
     const postgres = ctx.db.postgres as PostgresClient;
 
-    const router = buildAgentRuntimeRouter(routingService, log, postgres);
+    const router = buildAgentRuntimeRouter(routingService, log, postgres, ctx.events);
 
     router.get('/healthz', (_req, res) => {
       res.json({ module: 'agent-runtime', status: 'healthy' });
