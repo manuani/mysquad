@@ -100,6 +100,23 @@
   }
   .composer button:disabled { background: #b4b2a9; cursor: not-allowed; }
 
+  /* Voice mode */
+  .voice-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1px solid #d3d1c7; background: #fff; cursor: pointer; color: #2c2c2a;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .voice-btn:hover { background: #f1efe8; }
+  .voice-btn.active { background: #fce8e8; border-color: #e09090; color: #8b1a1a; }
+  .voice-btn.active::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c0392b; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .voice-unavailable { font-size: 11px; color: #888780; margin-left: 8px; }
+  .transcript-chunk {
+    font-size: 12px; color: #5f5e5a; font-style: italic;
+    padding: 4px 8px; background: #f1efe8; border-radius: 6px; margin-bottom: 4px;
+  }
+
   .gate {
     display: flex; align-items: center; justify-content: center; height: 100vh; background: #f6f5f1;
   }
@@ -149,7 +166,11 @@
         <h1>Meeting room</h1>
         <div class="sub" id="session-sub">Sarah Chen (CFO) · Priya Reddy (CMO) · Marcus Webb (Devil's Advocate)</div>
       </div>
-      <a href="#" id="switch-account" style="font-size:12px; color:#888780;">Switch account</a>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="voice-btn" id="voice-btn" title="Toggle voice mode">🎙 Voice</button>
+        <span class="voice-unavailable" id="voice-unavailable" style="display:none;">Voice not configured</span>
+        <a href="#" id="switch-account" style="font-size:12px; color:#888780;">Switch account</a>
+      </div>
     </div>
     <div class="transcript" id="transcript"></div>
 
@@ -508,6 +529,133 @@ document.getElementById('fact-submit').addEventListener('click', async () => {
   });
   document.getElementById('fact-content').value = '';
   loadBrainItems();
+});
+
+// ---------- Voice mode ----------
+const MEDIA_COORDINATOR_URL = window.MEDIA_COORDINATOR_URL || 'http://localhost:3001';
+let voiceActive = false;
+let mediaRecorder = null;
+let voicePollTimer = null;
+let lastContributionBatches = 0;
+let liveChunkEl = null;
+
+async function startVoiceMode() {
+  // 1. Request LiveKit token — tests whether voice is configured server-side
+  let tokenRes;
+  try {
+    tokenRes = await api('/v1/meeting/sessions/' + meetingSessionId + '/voice-token', { method: 'POST' });
+  } catch (e) {
+    if (e.message && e.message.includes('not configured')) {
+      document.getElementById('voice-unavailable').style.display = 'inline';
+      setTimeout(() => { document.getElementById('voice-unavailable').style.display = 'none'; }, 4000);
+      return;
+    }
+    addBubble('error', 'Voice', '', 'Could not start voice mode: ' + e.message);
+    return;
+  }
+
+  // 2. Start media-coordinator session
+  try {
+    await fetch(MEDIA_COORDINATOR_URL + '/sessions/' + meetingSessionId + '/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenantId: session.tenantId,
+        userId: session.userId,
+        sessionToken: session.sessionToken,
+      }),
+    });
+  } catch (e) {
+    addBubble('error', 'Voice', '', 'Media coordinator unreachable — is it running on port 3001?');
+    return;
+  }
+
+  // 3. Start mic capture
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+  } catch (e) {
+    addBubble('error', 'Voice', '', 'Microphone access denied: ' + e.message);
+    return;
+  }
+
+  mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+  mediaRecorder.ondataavailable = async (e) => {
+    if (e.data.size === 0) return;
+    const buf = await e.data.arrayBuffer();
+    fetch(MEDIA_COORDINATOR_URL + '/sessions/' + meetingSessionId + '/audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: buf,
+    }).catch(() => {});
+  };
+  mediaRecorder.start(250); // 250ms chunks
+
+  voiceActive = true;
+  document.getElementById('voice-btn').classList.add('active');
+  document.getElementById('voice-btn').textContent = '⏹ Stop Voice';
+  addBubble('agent', 'System', '', '🎙 Voice mode active — speak to your team.');
+
+  // 4. Poll media-coordinator for new contributions
+  lastContributionBatches = 0;
+  voicePollTimer = setInterval(async () => {
+    try {
+      const status = await fetch(MEDIA_COORDINATOR_URL + '/sessions/' + meetingSessionId + '/status').then(r => r.json());
+
+      // Show live transcript chunk
+      const chunks = status.recentTranscript || [];
+      const lastChunk = chunks[chunks.length - 1];
+      if (lastChunk && !lastChunk.isFinal) {
+        if (!liveChunkEl) {
+          liveChunkEl = document.createElement('div');
+          liveChunkEl.className = 'transcript-chunk';
+          document.getElementById('transcript').appendChild(liveChunkEl);
+        }
+        liveChunkEl.textContent = '🎤 ' + lastChunk.text;
+        document.getElementById('transcript').scrollTop = document.getElementById('transcript').scrollHeight;
+      } else if (liveChunkEl && lastChunk?.isFinal) {
+        liveChunkEl.remove();
+        liveChunkEl = null;
+      }
+
+      // Render new contribution batches
+      const batches = status.recentContributions || [];
+      if (status.contributionBatches > lastContributionBatches) {
+        lastContributionBatches = status.contributionBatches;
+        for (const batch of batches) {
+          for (const c of batch) {
+            addBubble('agent', c.agentName, c.role, c.text);
+            if (meetingSessionId) {
+              api('/v1/meeting/sessions/' + meetingSessionId + '/transcript', {
+                method: 'POST',
+                body: JSON.stringify({ speakerType: 'agent', speakerName: c.agentName, content: c.text }),
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch (e) { /* coordinator may not be running */ }
+  }, 800);
+}
+
+async function stopVoiceMode() {
+  if (mediaRecorder) { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); mediaRecorder = null; }
+  if (voicePollTimer) { clearInterval(voicePollTimer); voicePollTimer = null; }
+  if (liveChunkEl) { liveChunkEl.remove(); liveChunkEl = null; }
+  voiceActive = false;
+  document.getElementById('voice-btn').classList.remove('active');
+  document.getElementById('voice-btn').textContent = '🎙 Voice';
+
+  if (meetingSessionId) {
+    fetch(MEDIA_COORDINATOR_URL + '/sessions/' + meetingSessionId + '/end', { method: 'POST' }).catch(() => {});
+  }
+  addBubble('agent', 'System', '', '⏹ Voice mode stopped.');
+}
+
+document.getElementById('voice-btn').addEventListener('click', async () => {
+  if (!meetingSessionId) return;
+  if (voiceActive) await stopVoiceMode();
+  else await startVoiceMode();
 });
 
 async function init() {

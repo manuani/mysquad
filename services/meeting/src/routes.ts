@@ -20,6 +20,7 @@ import { isPlatformError, ValidationError } from '@voai/errors';
 import { startSession, getSession, endSession, type SessionMode } from './sessions.js';
 import { appendTranscriptEntry, getTranscript, type SpeakerType } from './transcript.js';
 import type { SseManager } from './sse.js';
+import { AccessToken } from 'livekit-server-sdk';
 
 function requireParam(req: Request, name: string): string {
   const value = req.params[name];
@@ -179,6 +180,62 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
       sse.remove(sessionId, res);
       log.info('SSE client disconnected', { sessionId, count: sse.connectionCount(sessionId) });
     });
+  });
+
+  /**
+   * Generate a LiveKit access token for the calling user to join a voice session.
+   *
+   * The token grants publish+subscribe on the room named `sessionId` and expires
+   * in 4 hours (typical meeting length upper bound).
+   *
+   * Returns { token, livekitUrl } when LiveKit is configured via environment
+   * variables (LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL).
+   * Returns { error: 'VOICE_NOT_CONFIGURED' } with 422 when credentials are absent
+   * so the client can gracefully fall back to typed mode.
+   */
+  router.post('/sessions/:id/voice-token', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const sessionId = requireParam(req, 'id');
+
+      const livekitApiKey = process.env['LIVEKIT_API_KEY'];
+      const livekitApiSecret = process.env['LIVEKIT_API_SECRET'];
+      const livekitUrl = process.env['LIVEKIT_URL'];
+
+      if (!livekitApiKey || !livekitApiSecret || !livekitUrl) {
+        res.status(422).json({
+          error: 'VOICE_NOT_CONFIGURED',
+          message: 'LiveKit credentials not set — voice mode unavailable',
+        });
+        return;
+      }
+
+      // Verify the session exists and belongs to this tenant
+      const session = await getSession(tenantContext, postgres, sessionId);
+      if (!session) {
+        res.status(404).json({ error: 'NOT_FOUND', message: 'session not found' });
+        return;
+      }
+
+      const at = new AccessToken(livekitApiKey, livekitApiSecret, {
+        identity: tenantContext.userId,
+        name: `user-${tenantContext.userId}`,
+        ttl: '4h',
+      });
+      at.addGrant({
+        roomJoin: true,
+        room: sessionId,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      });
+
+      const token = await at.toJwt();
+      log.info('voice token issued', { sessionId, userId: tenantContext.userId });
+      res.status(200).json({ token, livekitUrl });
+    } catch (err) {
+      handleError(err, res, log);
+    }
   });
 
   return router;
