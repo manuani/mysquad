@@ -22,6 +22,8 @@ import { buildAgentRuntimeRouter } from './routes.js';
 
 export { AgentRuntime } from './agent-runtime.js';
 export type { AgentContribution, AgentContributionInput, ConversationTurn } from './agent-runtime.js';
+export { Arbiter, DEFAULT_MAX_SPEAKERS, GATE_PASS_THRESHOLD } from './arbiter.js';
+export type { ArbiterPersona, GatedPersona, RankedPersona } from './arbiter.js';
 export { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
 export { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
 export { MARCUS_DEVILS_ADVOCATE_PERSONA } from './personas/marcus-devils-advocate.js';

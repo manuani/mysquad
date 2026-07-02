@@ -22,6 +22,7 @@ import type { TenantContext } from '@voai/auth-context';
 import type { LlmMessage, RoutingService } from '@voai/routing';
 import type { EventBus } from '@voai/types';
 import type { AgentPersona } from './personas/sarah-cfo.js';
+import { Arbiter, DEFAULT_MAX_SPEAKERS, GATE_PASS_THRESHOLD, type GatedPersona } from './arbiter.js';
 
 export interface ConversationTurn {
   readonly role: 'user' | 'assistant';
@@ -100,6 +101,8 @@ function assembleSystemPrompt(
 }
 
 export class AgentRuntime {
+  private readonly arbiter = new Arbiter();
+
   constructor(private readonly routingService: RoutingService) {}
 
   /**
@@ -278,6 +281,99 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       skipped: boolean;
       gateResult?: ResponseGateResult;
     }>;
+  }
+
+  /**
+   * Arbiter-driven ordered contribution generation. Replaces the naive
+   * parallel fan-out used before Sprint 7.
+   *
+   * Flow:
+   *  1. Gate: cheap Haiku call per persona to score relevance (threshold 0.4).
+   *  2. Rank: arbiter scores passing personas by relevance + silence penalty,
+   *     returns top `maxSpeakers` in order.
+   *  3. Generate sequentially: persona N receives the content produced by
+   *     personas 1…N-1 as additional context, enabling natural references
+   *     ("Building on what Sarah said…").
+   *  4. Update silence tracker for each persona that contributed.
+   *  5. Return skipped personas so the observer loop can re-score them.
+   */
+  async generateOrderedContributions(
+    tenantContext: TenantContext,
+    personas: readonly AgentPersona[],
+    input: AgentContributionInput,
+    options?: { maxSpeakers?: number; skipGate?: boolean },
+  ): Promise<{
+    ordered: Array<{
+      persona: AgentPersona;
+      contribution: AgentContribution;
+      rank: number;
+      compositeScore: number;
+    }>;
+    skipped: Array<{ persona: AgentPersona; gateResult: ResponseGateResult }>;
+  }> {
+    const maxSpeakers = options?.maxSpeakers ?? DEFAULT_MAX_SPEAKERS;
+
+    // ── Step 1: gate all personas in parallel ────────────────────────────────
+    const gateResults: ResponseGateResult[] = options?.skipGate
+      ? personas.map(() => ({ shouldRespond: true, relevanceScore: 1.0, reason: 'gate skipped' }))
+      : await Promise.all(
+          personas.map((p) => this.checkShouldRespond(tenantContext, p, input.message, input.priorTurns)),
+        );
+
+    // Keep full AgentPersona objects keyed by id so we can recover them after
+    // the arbiter returns slim ArbiterPersona references.
+    const fullPersonaById = new Map<string, AgentPersona>(personas.map((p) => [p.id, p]));
+
+    const passing: GatedPersona[] = [];
+    const skipped: Array<{ persona: AgentPersona; gateResult: ResponseGateResult }> = [];
+
+    personas.forEach((persona, i) => {
+      const gate = gateResults[i]!;
+      if (gate.shouldRespond && gate.relevanceScore >= GATE_PASS_THRESHOLD) {
+        passing.push({ persona: { id: persona.id, name: persona.name, role: persona.role }, relevanceScore: gate.relevanceScore });
+      } else {
+        skipped.push({ persona, gateResult: gate });
+      }
+    });
+
+    // ── Step 2: rank passing personas ────────────────────────────────────────
+    const ranked = this.arbiter.rank(passing, maxSpeakers);
+
+    // ── Step 3: generate sequentially, accumulating prior responses ──────────
+    const allPersonaNames = personas.map((p) => ({ name: p.name, role: p.role }));
+    const priorResponses: string[] = [];
+    const ordered: Array<{
+      persona: AgentPersona;
+      contribution: AgentContribution;
+      rank: number;
+      compositeScore: number;
+    }> = [];
+
+    for (let i = 0; i < ranked.length; i++) {
+      const { persona: slim, compositeScore } = ranked[i]!;
+      const persona = fullPersonaById.get(slim.id)!;
+
+      // Build a system-prompt suffix so this persona knows what was already said
+      let priorContext: readonly string[] | undefined = input.brainContext;
+      if (priorResponses.length > 0) {
+        const priorBlock = priorResponses.map((c, idx) => `${ranked[idx]!.persona.name}: ${c}`).join('\n\n');
+        const priorNote = `Your teammates in this turn have already responded:\n${priorBlock}\n\nAdd your perspective. You may reference what they said, but do not simply repeat it.`;
+        priorContext = [...(input.brainContext ?? []), priorNote];
+      }
+
+      const contribution = await this.generateContribution(tenantContext, persona, {
+        ...input,
+        brainContext: priorContext,
+        teammates: allPersonaNames.filter((t) => t.name !== persona.name),
+      });
+
+      priorResponses.push(contribution.content);
+      this.arbiter.recordSpoke(persona.id);
+
+      ordered.push({ persona, contribution, rank: i + 1, compositeScore });
+    }
+
+    return { ordered, skipped };
   }
 
   /**

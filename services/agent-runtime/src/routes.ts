@@ -119,41 +119,39 @@ export function buildAgentRuntimeRouter(
         },
       );
 
-      const results = await runtime.generateRosterContributions(tenantContext, ROSTER, {
-        message: body.message,
-        brainContext,
-      });
+      const { ordered, skipped } = await runtime.generateOrderedContributions(
+        tenantContext,
+        ROSTER,
+        { message: body.message, brainContext },
+      );
 
       res.status(200).json({
-        contributions: results.map((r) => ({
+        contributions: ordered.map((r) => ({
           agentName: r.persona.name,
           role: r.persona.role,
           contribution: r.contribution,
-          error: r.error,
-          skipped: r.skipped,
-          gateResult: r.gateResult,
+          rank: r.rank,
+          compositeScore: r.compositeScore,
+          error: null,
+          skipped: false,
         })),
+        skippedCount: skipped.length,
       });
 
       // Observer loop: fire async after response is sent.
-      // For each skipped persona, check if they urgently want to add something
-      // now that they've "heard" what the others said. Non-blocking.
-      if (sessionId) {
-        const skipped = results
-          .filter((r) => r.skipped && r.gateResult)
-          .map((r) => ({ persona: r.persona, gateResult: r.gateResult! }));
-
-        if (skipped.length > 0) {
-          const contributionsSoFar = results
-            .filter((r) => r.contribution !== null)
-            .map((r) => r.contribution!.content);
-
-          runtime
-            .observeSkippedPersonas(tenantContext, skipped, { message: body.message, contributionsSoFar }, sessionId, events)
-            .catch((err: unknown) => {
-              log.warn('observer loop error (non-blocking)', { err: String(err) });
-            });
-        }
+      if (sessionId && skipped.length > 0) {
+        const contributionsSoFar = ordered.map((r) => r.contribution.content);
+        runtime
+          .observeSkippedPersonas(
+            tenantContext,
+            skipped,
+            { message: body.message, contributionsSoFar },
+            sessionId,
+            events,
+          )
+          .catch((err: unknown) => {
+            log.warn('observer loop error (non-blocking)', { err: String(err) });
+          });
       }
     } catch (err) {
       handleError(err, res, log);
