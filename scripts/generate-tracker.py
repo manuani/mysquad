@@ -166,12 +166,12 @@ ROWS = [
     ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Escalation event surfaced to founder in UI", "Pending", "Product", "Depends on SSE escalation event + demo chip"),
     ("P3", "S9 — Expert Profiles & Matching", "brain", "Expert domain knowledge indexed in Neo4j graph", "Pending", "Engineering", "Phase 4 — embedding similarity replaces token-overlap in matching.ts"),
 
-    ("P3", "S10 — Expert Session Scheduling", "scheduler", "scheduler app: cron-style job runner (apps/scheduler stub)", "Pending", "Engineering", ""),
-    ("P3", "S10 — Expert Session Scheduling", "scheduler", "Morning briefing cron job (08:00 per tenant timezone)", "Pending", "Engineering", "notification service generates; scheduler triggers"),
-    ("P3", "S10 — Expert Session Scheduling", "meeting", "Expert-join flow: invite expert to existing LiveKit room", "Pending", "Engineering", ""),
-    ("P3", "S10 — Expert Session Scheduling", "meeting", "Calendar integration (Cal.com or Google Calendar)", "Pending", "Engineering", ""),
+    ("P3", "S10 — Expert Session Scheduling", "scheduler", "scheduler app: cron-style job runner", "Done", "Engineering", "apps/scheduler; CronRunner; parseCron; shouldRun; 13 tests"),
+    ("P3", "S10 — Expert Session Scheduling", "scheduler", "Morning briefing cron job (08:00 UTC daily)", "Done", "Engineering", "calls /internal/scheduler/morning-briefing on api-server"),
+    ("P3", "S10 — Expert Session Scheduling", "marketplace", "Expert availability slots API", "Done", "Engineering", "GET /experts/:id/slots?date=YYYY-MM-DD → 30-min slot list"),
+    ("P3", "S10 — Expert Session Scheduling", "marketplace", "Expert session booking (Cal.com integration)", "Done", "Engineering", "POST /experts/:id/book; Cal.com when CALCOM_API_KEY set"),
+    ("P3", "S10 — Expert Session Scheduling", "meeting", "Expert-join flow: invite expert to LiveKit room", "Pending", "Engineering", "Requires LiveKit room token for expert identity"),
     ("P3", "S10 — Expert Session Scheduling", "Demo UI", "Expert availability picker + booking confirmation", "Pending", "Product", ""),
-    ("P3", "S10 — Expert Session Scheduling", "Demo UI", "Expert joins same room as founder + AI panel (handoff UX)", "Pending", "Product", ""),
 
     ("P3", "S11 — Usage Metering & Billing", "marketplace-metering", "Token count per session stored in metering table", "Pending", "Engineering", "services/marketplace-metering stub exists"),
     ("P3", "S11 — Usage Metering & Billing", "marketplace-metering", "Expert-minute billing events", "Pending", "Engineering", ""),
