@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true
+  },
+  "references": [
+    { "path": "../../packages/types" },
+    { "path": "../../packages/telemetry" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/auth-context" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "tests"]
+}

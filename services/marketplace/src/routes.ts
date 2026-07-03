@@ -23,6 +23,7 @@ import {
 } from './experts.js';
 import { matchExperts } from './matching.js';
 import { recordEscalation, updateEscalationStatus, getSessionEscalations } from './escalation.js';
+import { getAvailableSlots, createBooking } from './booking.js';
 
 function tenantContextFromHeaders(req: Request) {
   return buildTenantContext({
@@ -146,6 +147,46 @@ export function buildMarketplaceRouter(postgres: PostgresClient, log: Logger): R
         matchExperts(tc, client, body.topic as string, topK),
       );
       res.status(200).json({ matches, topic: body.topic });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  // ── Expert booking ──────────────────────────────────────────────────────────
+
+  router.get('/experts/:id/slots', async (req: Request, res: Response) => {
+    try {
+      const tc = tenantContextFromHeaders(req);
+      const id = req.params['id']!;
+      const date = (req.query as Record<string, string>)['date'];
+      if (!date) throw new ValidationError('date query param required (YYYY-MM-DD)');
+      const slots = await postgres.withTenant(tc.tenantId, async (client) =>
+        getAvailableSlots(tc, client, id, date),
+      );
+      res.status(200).json({ slots });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.post('/experts/:id/book', async (req: Request, res: Response) => {
+    try {
+      const tc = tenantContextFromHeaders(req);
+      const id = req.params['id']!;
+      const body = req.body as Record<string, unknown>;
+      if (typeof body.slotStart !== 'string') throw new ValidationError('slotStart required');
+      if (typeof body.founderEmail !== 'string') throw new ValidationError('founderEmail required');
+      if (typeof body.topic !== 'string') throw new ValidationError('topic required');
+      const booking = await postgres.withTenant(tc.tenantId, async (client) =>
+        createBooking(tc, client, {
+          expertId: id,
+          slotStart: body.slotStart as string,
+          founderEmail: body.founderEmail as string,
+          topic: body.topic as string,
+        }),
+      );
+      log.info('expert session booked', { bookingId: booking.id, expertId: id, calcomLinked: !!booking.calcomBookingId });
+      res.status(201).json(booking);
     } catch (err) {
       handleError(err, res, log);
     }

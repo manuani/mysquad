@@ -24,6 +24,9 @@ export { matchExperts, scoreExpert } from './matching.js';
 export type { EscalationEvent, CreateEscalationInput } from './escalation.js';
 export { recordEscalation, updateEscalationStatus, getSessionEscalations } from './escalation.js';
 
+export type { AvailableSlot, BookingRecord, CreateBookingInput } from './booking.js';
+export { getAvailableSlots, createBooking } from './booking.js';
+
 export const marketplaceModule: ModuleDefinition = {
   name: 'marketplace',
   async register(ctx: ModuleContext): Promise<ModuleHandle> {

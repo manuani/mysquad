@@ -78,3 +78,28 @@ CREATE POLICY escalation_events_tenant_isolation ON escalation_events
 
 CREATE INDEX IF NOT EXISTS escalation_events_session_idx ON escalation_events(session_id);
 CREATE INDEX IF NOT EXISTS escalation_events_tenant_idx ON escalation_events(tenant_id);
+
+-- ── expert_bookings ──────────────────────────────────────────────────────────────
+-- Confirmed session bookings between founders and human experts.
+-- Cal.com booking ID is null when Cal.com is not configured.
+CREATE TABLE IF NOT EXISTS expert_bookings (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expert_id         UUID NOT NULL REFERENCES expert_profiles(id),
+  tenant_id         UUID NOT NULL,
+  slot_start        TIMESTAMPTZ NOT NULL,
+  slot_end          TIMESTAMPTZ NOT NULL,
+  founder_email     TEXT NOT NULL,
+  topic             TEXT NOT NULL,
+  calcom_booking_id TEXT,
+  status            TEXT NOT NULL DEFAULT 'confirmed'
+                      CHECK (status IN ('confirmed', 'cancelled')),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE expert_bookings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY expert_bookings_tenant_isolation ON expert_bookings
+  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+CREATE INDEX IF NOT EXISTS expert_bookings_expert_idx ON expert_bookings(expert_id);
+CREATE INDEX IF NOT EXISTS expert_bookings_slot_idx ON expert_bookings(slot_start);

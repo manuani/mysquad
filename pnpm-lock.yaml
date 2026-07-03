@@ -146,6 +146,37 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)
 
+  apps/scheduler:
+    dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@voai/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+      '@voai/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      express:
+        specifier: ^4.21.0
+        version: 4.22.1
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.39)
+
   packages/auth-context:
     devDependencies:
       typescript:
