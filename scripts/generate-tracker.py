@@ -158,12 +158,13 @@ ROWS = [
     # ── PHASE 3 ──────────────────────────────────────────────────────────────
     ("PHASE", "Phase 3 — Expert Network & Marketplace", "", "", "", "", ""),
 
-    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert schema: domain tags, availability windows, rate card", "Pending", "Engineering", "services/marketplace stub exists"),
-    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert onboarding flow (API + UI)", "Pending", "Product", ""),
-    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert matching endpoint: given topic → ranked expert list", "Pending", "Engineering", ""),
-    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Persona can trigger 'escalate to real expert' action", "Pending", "Engineering", ""),
-    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Escalation event surfaced to founder in UI", "Pending", "Product", ""),
-    ("P3", "S9 — Expert Profiles & Matching", "brain", "Expert domain knowledge indexed in Neo4j graph", "Pending", "Engineering", ""),
+    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert schema: domain tags, availability windows, rate card", "Done", "Engineering", "migration 0008; expert_profiles + expert_domain_tags + expert_availability"),
+    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert onboarding flow (API)", "Done", "Product", "POST /experts + PATCH /experts/:id + POST /experts/:id/tags"),
+    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert matching endpoint: given topic → ranked expert list", "Done", "Engineering", "POST /match; token-overlap scoring; Phase 4 upgrades to vector similarity"),
+    ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Escalation events: persona → real expert suggestion", "Done", "Engineering", "POST /escalations + PATCH /escalations/:id (accept/dismiss)"),
+    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Persona can trigger 'escalate to real expert' action", "Pending", "Engineering", "Requires new agent-runtime prompt instruction + EventBus escalate event"),
+    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Escalation event surfaced to founder in UI", "Pending", "Product", "Depends on SSE escalation event + demo chip"),
+    ("P3", "S9 — Expert Profiles & Matching", "brain", "Expert domain knowledge indexed in Neo4j graph", "Pending", "Engineering", "Phase 4 — embedding similarity replaces token-overlap in matching.ts"),
 
     ("P3", "S10 — Expert Session Scheduling", "scheduler", "scheduler app: cron-style job runner (apps/scheduler stub)", "Pending", "Engineering", ""),
     ("P3", "S10 — Expert Session Scheduling", "scheduler", "Morning briefing cron job (08:00 per tenant timezone)", "Pending", "Engineering", "notification service generates; scheduler triggers"),
