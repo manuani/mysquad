@@ -408,9 +408,18 @@ importers:
 
   services/marketplace:
     dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@voai/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@voai/events':
+        specifier: workspace:*
+        version: link:../../packages/events
       '@voai/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
