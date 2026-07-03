@@ -89,6 +89,24 @@
   .raise-hand-chip .dismiss { color: #aaa; font-size: 11px; margin-left: 4px; }
   .raise-hand-chip .dismiss:hover { color: #888; }
 
+  /* Expert escalation chip */
+  .escalation-bar {
+    display: none; flex-wrap: wrap; gap: 8px; align-items: center;
+    background: #eef4ff; border-top: 1px solid #c3d5f7;
+    padding: 10px 24px;
+  }
+  .escalation-bar.visible { display: flex; }
+  .escalation-label { font-size: 12px; font-weight: 600; color: #1a3a8c; white-space: nowrap; }
+  .escalation-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #ddeaff; border: 1px solid #6b97e8; border-radius: 20px;
+    padding: 5px 12px; font-size: 12px; cursor: pointer; font-weight: 500;
+    transition: background 0.15s;
+  }
+  .escalation-chip:hover { background: #bdd3ff; }
+  .escalation-chip .dismiss { color: #aaa; font-size: 11px; margin-left: 4px; }
+  .escalation-chip .dismiss:hover { color: #888; }
+
   .composer { border-top: 1px solid #e4e2da; padding: 16px 24px; background: #fff; display: flex; gap: 10px; }
   .composer textarea {
     flex: 1; resize: none; min-height: 48px; max-height: 140px;
@@ -178,6 +196,12 @@
     <div class="raise-hand-bar" id="raise-hand-bar">
       <span class="raise-hand-label">✋ Wants to add something:</span>
       <div id="raise-hand-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    </div>
+
+    <!-- Escalation bar: shown when matched experts are available for a topic -->
+    <div class="escalation-bar" id="escalation-bar">
+      <span class="escalation-label">🎯 Expert match:</span>
+      <div id="escalation-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
 
     <div class="composer">
@@ -338,6 +362,56 @@ function renderRaiseHandChips() {
   }
 }
 
+// ── Escalation chip ────────────────────────────────────────────────────────
+let pendingEscalations = new Map(); // expertId → { name, bio, score }
+
+function renderEscalationChips() {
+  const bar = document.getElementById('escalation-bar');
+  const chips = document.getElementById('escalation-chips');
+  chips.innerHTML = '';
+  if (pendingEscalations.size === 0) {
+    bar.classList.remove('visible');
+    return;
+  }
+  bar.classList.add('visible');
+  for (const [expertId, info] of pendingEscalations) {
+    const chip = document.createElement('button');
+    chip.className = 'escalation-chip';
+    chip.innerHTML =
+      '👤 ' + escapeHtml(info.name) +
+      (info.bio ? ' <span style="font-size:10px;color:#3a5caa;">' + escapeHtml(info.bio.slice(0, 40)) + '…</span>' : '') +
+      ' <span class="dismiss" data-eid="' + escapeHtml(expertId) + '" title="Dismiss">✕</span>';
+    chip.addEventListener('click', (e) => {
+      const dismiss = e.target.closest('.dismiss');
+      if (dismiss) {
+        pendingEscalations.delete(dismiss.dataset.eid);
+        renderEscalationChips();
+      }
+    });
+    chips.appendChild(chip);
+  }
+}
+
+async function triggerEscalation(topic) {
+  try {
+    const result = await api('/v1/agent-runtime/escalate', {
+      method: 'POST',
+      body: JSON.stringify({ topic, sessionId: meetingSessionId }),
+    });
+    if (result.experts && result.experts.length > 0) {
+      pendingEscalations.clear();
+      for (const m of result.experts) {
+        pendingEscalations.set(m.expert.id, {
+          name: m.expert.name,
+          bio: m.expert.bio || '',
+          score: m.score,
+        });
+      }
+      renderEscalationChips();
+    }
+  } catch (e) { /* expert matching failed, silently skip */ }
+}
+
 async function pullPersonaContribution(info) {
   const lastUserMsg = [...document.querySelectorAll('.bubble.founder')]
     .map(b => b.textContent).filter(Boolean).at(-1) || '';
@@ -442,6 +516,8 @@ async function sendMessage() {
         }
       }
     }
+    // Fire escalation lookup in the background; shows chip if experts match
+    triggerEscalation(message);
   } catch (e) {
     pending.remove();
     addBubble('error', 'Error', '', e.message);
@@ -459,6 +535,8 @@ document.getElementById('switch-account').addEventListener('click', (e) => {
   meetingSessionId = null;
   pendingRaises.clear();
   renderRaiseHandChips();
+  pendingEscalations.clear();
+  renderEscalationChips();
   document.getElementById('transcript').innerHTML = '';
   showGate();
 });

@@ -12,7 +12,7 @@
 
 import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
-import type { PostgresClient } from '@voai/db';
+import type { PostgresClient, Neo4jClient } from '@voai/db';
 import { buildMarketplaceRouter } from './routes.js';
 
 export type { ExpertProfile, ExpertDomainTag, ExpertWithTags, CreateExpertInput, UpdateExpertInput } from './experts.js';
@@ -27,14 +27,18 @@ export { recordEscalation, updateEscalationStatus, getSessionEscalations } from 
 export type { AvailableSlot, BookingRecord, CreateBookingInput } from './booking.js';
 export { getAvailableSlots, createBooking } from './booking.js';
 
+export type { GraphClient } from './graph.js';
+export { indexExpertDomains, graphMatchExperts, removeExpertFromGraph } from './graph.js';
+
 export const marketplaceModule: ModuleDefinition = {
   name: 'marketplace',
   async register(ctx: ModuleContext): Promise<ModuleHandle> {
     const log = ctx.logger.child({ module: 'marketplace' });
     const postgres = ctx.db.postgres as PostgresClient;
+    const neo4jClient = (ctx.db.neo4j as Neo4jClient | null) ?? null;
 
     const router = express.Router();
-    router.use(buildMarketplaceRouter(postgres, log));
+    router.use(buildMarketplaceRouter(postgres, log, { neo4j: neo4jClient }));
 
     router.get('/healthz', (_req, res) => {
       res.json({ module: 'marketplace', status: 'healthy' });

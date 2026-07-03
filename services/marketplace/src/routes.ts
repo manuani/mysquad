@@ -24,6 +24,8 @@ import {
 import { matchExperts } from './matching.js';
 import { recordEscalation, updateEscalationStatus, getSessionEscalations } from './escalation.js';
 import { getAvailableSlots, createBooking } from './booking.js';
+import { indexExpertDomains } from './graph.js';
+import type { GraphClient } from './graph.js';
 
 function tenantContextFromHeaders(req: Request) {
   return buildTenantContext({
@@ -43,7 +45,11 @@ function handleError(err: unknown, res: Response, log: Logger): void {
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
 }
 
-export function buildMarketplaceRouter(postgres: PostgresClient, log: Logger): Router {
+export function buildMarketplaceRouter(
+  postgres: PostgresClient,
+  log: Logger,
+  graphClient: GraphClient = { neo4j: null },
+): Router {
   const router = Router();
 
   // ── Expert profile CRUD ─────────────────────────────────────────────────────
@@ -65,6 +71,10 @@ export function buildMarketplaceRouter(postgres: PostgresClient, log: Logger): R
           domains: Array.isArray(body.domains) ? body.domains as Array<{ domain: string; confidence?: number }> : undefined,
         }),
       );
+      // Index in Neo4j graph (non-blocking; degrades gracefully when Neo4j absent)
+      indexExpertDomains(tc, graphClient, expert).catch((err: unknown) => {
+        log.warn('neo4j expert index failed (non-blocking)', { expertId: expert.id, err: String(err) });
+      });
       res.status(201).json(expert);
     } catch (err) {
       handleError(err, res, log);
@@ -129,6 +139,16 @@ export function buildMarketplaceRouter(postgres: PostgresClient, log: Logger): R
       const tag = await postgres.withTenant(tc.tenantId, async (client) =>
         addExpertDomainTag(tc, client, id, body.domain as string, typeof body.confidence === 'number' ? body.confidence : undefined),
       );
+      // Re-index full expert in Neo4j (non-blocking)
+      postgres.withTenant(tc.tenantId, (client) => getExpert(tc, client, id))
+        .then((expert) => {
+          if (expert) {
+            return indexExpertDomains(tc, graphClient, expert);
+          }
+        })
+        .catch((err: unknown) => {
+          log.warn('neo4j re-index after tag add failed (non-blocking)', { expertId: id, err: String(err) });
+        });
       res.status(201).json(tag);
     } catch (err) {
       handleError(err, res, log);
