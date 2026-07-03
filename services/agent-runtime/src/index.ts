@@ -17,7 +17,8 @@
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PlatformConfig } from '@voai/config';
 import type { PostgresClient } from '@voai/db';
-import { AnthropicProvider, RoutingService } from '@voai/routing';
+import { AnthropicProvider, RoutingService, type OnUsageCallback } from '@voai/routing';
+import { recordMeteringEvent, estimateCostMicro } from '@voai/marketplace-metering';
 import { buildAgentRuntimeRouter } from './routes.js';
 
 export { AgentRuntime } from './agent-runtime.js';
@@ -48,13 +49,24 @@ export const agent_runtimeModule: ModuleDefinition = {
     // call through the same `@voai/routing` typed export
     // (`RoutingService`/`AnthropicProvider`), so this is not a boundary
     // violation — it is two call sites depending on the same package.
-    const provider = new AnthropicProvider(config.anthropicApiKey);
-    const routingService = new RoutingService(provider, log);
-
-    // Same narrowing pattern as identity-and-tenancy/brain's own module
-    // registration: @voai/types keeps DatabaseClients loosely typed to
-    // avoid a circular dependency on @voai/db.
     const postgres = ctx.db.postgres as PostgresClient;
+
+    const onUsage: OnUsageCallback = (event) => {
+      const { totalCost } = estimateCostMicro(event.model, event.inputTokens, event.outputTokens);
+      return postgres.withTenant(event.tenantContext.tenantId, (client) =>
+        recordMeteringEvent(event.tenantContext, client, {
+          sessionId: event.sessionId,
+          eventType: 'llm_tokens',
+          quantity: event.inputTokens + event.outputTokens,
+          model: event.model,
+          unitCostMicro: Math.round(totalCost / Math.max(1, event.inputTokens + event.outputTokens)),
+          metadata: { inputTokens: event.inputTokens, outputTokens: event.outputTokens },
+        }),
+      ).then(() => undefined);
+    };
+
+    const provider = new AnthropicProvider(config.anthropicApiKey);
+    const routingService = new RoutingService(provider, log, onUsage);
 
     const router = buildAgentRuntimeRouter(routingService, log, postgres, ctx.events);
 

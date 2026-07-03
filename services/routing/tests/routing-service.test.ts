@@ -83,4 +83,37 @@ describe('RoutingService', () => {
       expect.objectContaining({ provider: 'fake', error: 'provider exploded' }),
     );
   });
+
+  it('fires onUsage callback with token counts after success', async () => {
+    const result: LlmCompletionResult = {
+      content: 'hello',
+      model: 'claude-sonnet-4-6',
+      usage: { inputTokens: 100, outputTokens: 50 },
+    };
+    const provider: LlmProvider = { id: 'fake', complete: vi.fn().mockResolvedValue(result) };
+    const logger = createFakeLogger();
+    const onUsage = vi.fn();
+
+    const service = new RoutingService(provider, logger, onUsage);
+    await service.complete(tenantContext, request);
+    // onUsage is called async; wait a microtask
+    await Promise.resolve();
+
+    expect(onUsage).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'claude-sonnet-4-6',
+      inputTokens: 100,
+      outputTokens: 50,
+      sessionId: 'session-1',
+    }));
+  });
+
+  it('does NOT call onUsage when provider fails', async () => {
+    const provider: LlmProvider = { id: 'fake', complete: vi.fn().mockRejectedValue(new Error('fail')) };
+    const onUsage = vi.fn();
+    const service = new RoutingService(provider, createFakeLogger(), onUsage);
+
+    await expect(service.complete(tenantContext, request)).rejects.toThrow('fail');
+    await Promise.resolve();
+    expect(onUsage).not.toHaveBeenCalled();
+  });
 });

@@ -18,6 +18,7 @@ import type { PostgresClient } from '@voai/db';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import type { RoutingService } from '@voai/routing';
 import type { EventBus, Logger } from '@voai/types';
+import { matchExperts } from '@voai/marketplace';
 import { AgentRuntime } from './agent-runtime.js';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
@@ -153,6 +154,40 @@ export function buildAgentRuntimeRouter(
             log.warn('observer loop error (non-blocking)', { err: String(err) });
           });
       }
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  /**
+   * Escalation trigger: when a persona identifies a topic that needs a real
+   * expert, the frontend POSTs here with the session + topic. Returns the
+   * top-matched expert(s) from the marketplace. Also records an escalation
+   * event for tracking.
+   *
+   * POST /escalate { topic: string, sessionId: string }
+   * → { experts: MatchedExpert[], escalationId: string }
+   */
+  router.post('/escalate', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromRequest(req);
+      const body = req.body as { topic?: unknown; sessionId?: unknown };
+      if (typeof body.topic !== 'string' || !body.topic.trim()) throw new ValidationError('topic is required');
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : tenantContext.sessionId ?? 'unknown';
+
+      const experts = await postgres.withTenant(tenantContext.tenantId, (client) =>
+        matchExperts(tenantContext, client, body.topic as string, 3),
+      );
+
+      events.publish({
+        type: 'escalation.triggered',
+        tenantId: tenantContext.tenantId,
+        sessionId,
+        topic: body.topic as string,
+        topExpertIds: experts.slice(0, 3).map((e) => e.expert.id),
+      } as never).catch(() => {});
+
+      res.status(200).json({ experts, sessionId });
     } catch (err) {
       handleError(err, res, log);
     }

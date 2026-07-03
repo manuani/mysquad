@@ -13,7 +13,9 @@
     { "path": "../../packages/config" },
     { "path": "../../packages/db" },
     { "path": "../routing" },
-    { "path": "../brain" }
+    { "path": "../brain" },
+    { "path": "../marketplace-metering" },
+    { "path": "../marketplace" }
   ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "tests"]
