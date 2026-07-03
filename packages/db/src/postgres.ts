@@ -57,6 +57,15 @@ export function createPostgresClient(databaseUrl: string): {
         conn.release();
       }
     },
+
+    async adminQuery<R = unknown>(text: string, params?: unknown[]): Promise<R[]> {
+      // Runs on a pool connection without setting app.tenant_id so voai_admin
+      // (which BYPASSRLS) can read across all tenants. Only admin-console-api
+      // calls this. The pool itself uses the admin connection string when the
+      // ADMIN_DATABASE_URL env var is set; falls back to databaseUrl otherwise.
+      const result = await pool.query(text, params as unknown[]);
+      return result.rows as R[];
+    },
   };
 
   return { client, close: () => pool.end() };

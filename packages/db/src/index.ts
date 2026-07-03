@@ -47,6 +47,18 @@ export interface DatabaseClients {
  */
 export interface PostgresClient {
   withTenant<T>(tenantId: string, fn: (client: TenantScopedClient) => Promise<T>): Promise<T>;
+  /**
+   * Admin-only cross-tenant query.
+   *
+   * Runs WITHOUT setting `app.tenant_id` so RLS is not applied (the voai_admin
+   * role bypasses all RLS policies). Only the admin-console-api module calls
+   * this method — every other module uses withTenant() exclusively.
+   *
+   * Call sites must not be reachable from the founder-facing API surface;
+   * the admin-console-api router enforces x-admin-key authentication before
+   * any route handler is invoked.
+   */
+  adminQuery<T = unknown>(text: string, params?: unknown[]): Promise<T[]>;
 }
 
 /**
