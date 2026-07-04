@@ -170,8 +170,8 @@ ROWS = [
     ("P3", "S10 — Expert Session Scheduling", "scheduler", "Morning briefing cron job (08:00 UTC daily)", "Done", "Engineering", "calls /internal/scheduler/morning-briefing on api-server"),
     ("P3", "S10 — Expert Session Scheduling", "marketplace", "Expert availability slots API", "Done", "Engineering", "GET /experts/:id/slots?date=YYYY-MM-DD → 30-min slot list"),
     ("P3", "S10 — Expert Session Scheduling", "marketplace", "Expert session booking (Cal.com integration)", "Done", "Engineering", "POST /experts/:id/book; Cal.com when CALCOM_API_KEY set"),
-    ("P3", "S10 — Expert Session Scheduling", "meeting", "Expert-join flow: invite expert to LiveKit room", "Pending", "Engineering", "Requires LiveKit room token for expert identity"),
-    ("P3", "S10 — Expert Session Scheduling", "Demo UI", "Expert availability picker + booking confirmation", "Pending", "Product", ""),
+    ("P3", "S10 — Expert Session Scheduling", "meeting", "Expert-join flow: invite expert to LiveKit room", "Done", "Engineering", "POST /sessions/:id/expert-join-token; expert- identity; 2 tests; sprint15"),
+    ("P3", "S10 — Expert Session Scheduling", "Demo UI", "Expert availability picker + booking confirmation", "Done", "Product", "Booking modal on escalation chip click; slot list + confirm; sprint15"),
 
     ("P3", "S11 — Usage Metering & Billing", "marketplace-metering", "Token count per session stored in metering table", "Done", "Engineering", "POST /events; llm_tokens + ai_roster_call event types"),
     ("P3", "S11 — Usage Metering & Billing", "marketplace-metering", "Expert-minute billing events", "Done", "Engineering", "POST /events with eventType=expert_minutes"),
