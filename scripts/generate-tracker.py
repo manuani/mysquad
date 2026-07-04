@@ -162,9 +162,9 @@ ROWS = [
     ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert onboarding flow (API)", "Done", "Product", "POST /experts + PATCH /experts/:id + POST /experts/:id/tags"),
     ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Expert matching endpoint: given topic → ranked expert list", "Done", "Engineering", "POST /match; token-overlap scoring; Phase 4 upgrades to vector similarity"),
     ("P3", "S9 — Expert Profiles & Matching", "marketplace", "Escalation events: persona → real expert suggestion", "Done", "Engineering", "POST /escalations + PATCH /escalations/:id (accept/dismiss)"),
-    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Persona can trigger 'escalate to real expert' action", "Pending", "Engineering", "Requires new agent-runtime prompt instruction + EventBus escalate event"),
-    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Escalation event surfaced to founder in UI", "Pending", "Product", "Depends on SSE escalation event + demo chip"),
-    ("P3", "S9 — Expert Profiles & Matching", "brain", "Expert domain knowledge indexed in Neo4j graph", "Pending", "Engineering", "Phase 4 — embedding similarity replaces token-overlap in matching.ts"),
+    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Persona can trigger 'escalate to real expert' action", "Done", "Engineering", "POST /v1/agent-runtime/escalate; matchExperts + escalation.triggered event; sprint13"),
+    ("P3", "S9 — Expert Profiles & Matching", "agent-runtime", "Escalation event surfaced to founder in UI", "Done", "Product", "Expert match chips in demo UI after each roster response; sprint14"),
+    ("P3", "S9 — Expert Profiles & Matching", "brain", "Expert domain knowledge indexed in Neo4j graph", "Done", "Engineering", "graph.ts: (Expert)-[:HAS_DOMAIN]->(Domain); graphMatchExperts; 7 tests; sprint14"),
 
     ("P3", "S10 — Expert Session Scheduling", "scheduler", "scheduler app: cron-style job runner", "Done", "Engineering", "apps/scheduler; CronRunner; parseCron; shouldRun; 13 tests"),
     ("P3", "S10 — Expert Session Scheduling", "scheduler", "Morning briefing cron job (08:00 UTC daily)", "Done", "Engineering", "calls /internal/scheduler/morning-briefing on api-server"),
@@ -179,13 +179,13 @@ ROWS = [
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe subscription tiers (starter/growth/enterprise)", "Done", "Engineering", "POST /billing/subscribe; stubs when STRIPE_SECRET_KEY absent"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe charge per expert session", "Done", "Engineering", "POST /billing/expert-charge; invoice items"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Expert payout (Stripe Connect)", "Pending", "Engineering", "Requires Stripe Connect onboarding — deferred to Phase 4"),
-    ("P3", "S11 — Usage Metering & Billing", "routing", "Token routing: track per-tenant LLM spend via RoutingService", "Pending", "Engineering", "RoutingService returns usage.inputTokens/outputTokens; wire to metering"),
+    ("P3", "S11 — Usage Metering & Billing", "routing", "Token routing: track per-tenant LLM spend via RoutingService", "Done", "Engineering", "RoutingService onUsage callback → recordMeteringEvent llm_tokens; sprint13"),
 
-    ("P3", "S12 — Admin Console", "admin-console-api", "Tenant provisioning endpoint (services/admin-console-api stub)", "Pending", "Engineering", ""),
-    ("P3", "S12 — Admin Console", "admin-console-api", "User management: invite, role assignment, deactivation", "Pending", "Engineering", ""),
-    ("P3", "S12 — Admin Console", "admin-console-api", "Usage dashboard: decisions, expert spend, AI token cost per tenant", "Pending", "Engineering", ""),
-    ("P3", "S12 — Admin Console", "admin-console-api", "Seat-based subscription tier enforcement in routing layer", "Pending", "Engineering", ""),
-    ("P3", "S12 — Admin Console", "Admin UI", "Internal admin web app (separate from founder-facing demo UI)", "Pending", "Product", ""),
+    ("P3", "S12 — Admin Console", "admin-console-api", "Tenant provisioning endpoint — POST /tenants with x-admin-key auth", "Done", "Engineering", "sprint12"),
+    ("P3", "S12 — Admin Console", "admin-console-api", "User management: invite, role assignment, deactivation", "Deferred", "Engineering", ""),
+    ("P3", "S12 — Admin Console", "admin-console-api", "Usage dashboard — GET /tenants/:id/usage with metering breakdown", "Done", "Engineering", "sprint12"),
+    ("P3", "S12 — Admin Console", "admin-console-api", "Seat-based subscription tier enforcement in routing layer", "Deferred", "Engineering", ""),
+    ("P3", "S12 — Admin Console", "Admin UI", "Internal admin web app (separate from founder-facing demo UI)", "Deferred", "Product", ""),
 
     # ── PHASE 4 DEFERRED ─────────────────────────────────────────────────────
     ("PHASE", "Phase 4 — Scale & Production Hardening (Deferred)", "", "", "", "", ""),
