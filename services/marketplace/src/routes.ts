@@ -212,6 +212,44 @@ export function buildMarketplaceRouter(
     }
   });
 
+  // ── Availability + bookings ─────────────────────────────────────────────────
+
+  router.get('/experts/:id/availability', async (req: Request, res: Response) => {
+    try {
+      const tc = tenantContextFromHeaders(req);
+      const id = req.params['id']!;
+      const q = req.query as Record<string, string>;
+      const date = q['date'] ?? new Date().toISOString().slice(0, 10);
+      const slots = await postgres.withTenant(tc.tenantId, async (client) =>
+        getAvailableSlots(tc, client, id, date),
+      );
+      res.status(200).json({ slots });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.post('/bookings', async (req: Request, res: Response) => {
+    try {
+      const tc = tenantContextFromHeaders(req);
+      const body = req.body as Record<string, unknown>;
+      if (typeof body.expertId !== 'string') throw new ValidationError('expertId required');
+      if (typeof body.startUtc !== 'string') throw new ValidationError('startUtc required');
+      const booking = await postgres.withTenant(tc.tenantId, async (client) =>
+        createBooking(tc, client, {
+          expertId: body.expertId as string,
+          slotStart: body.startUtc as string,
+          founderEmail: tc.userId ?? 'unknown',
+          topic: typeof body.topic === 'string' ? body.topic : 'expert session',
+        }),
+      );
+      log.info('booking created via /bookings', { bookingId: booking.id });
+      res.status(201).json(booking);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
   // ── Escalation events ───────────────────────────────────────────────────────
 
   router.post('/escalations', async (req: Request, res: Response) => {

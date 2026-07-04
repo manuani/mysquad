@@ -107,6 +107,31 @@
   .escalation-chip .dismiss { color: #aaa; font-size: 11px; margin-left: 4px; }
   .escalation-chip .dismiss:hover { color: #888; }
 
+  /* Expert booking modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 28px 32px;
+    max-width: 480px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; }
+  .modal .sub { font-size: 13px; color: #888; margin-bottom: 20px; }
+  .slot-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .slot-btn {
+    background: #f5f4ef; border: 1px solid #d3d1c7; border-radius: 8px;
+    padding: 10px 14px; text-align: left; cursor: pointer; font-size: 14px;
+    transition: background 0.1s;
+  }
+  .slot-btn:hover { background: #e8f0fe; border-color: #6b97e8; }
+  .slot-btn.selected { background: #ddeaff; border-color: #3a5caa; font-weight: 600; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-actions button { padding: 9px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; }
+  .btn-primary { background: #26215c; color: #fff; font-weight: 600; }
+  .btn-secondary { background: #f5f4ef; color: #555; }
+
   .composer { border-top: 1px solid #e4e2da; padding: 16px 24px; background: #fff; display: flex; gap: 10px; }
   .composer textarea {
     flex: 1; resize: none; min-height: 48px; max-height: 140px;
@@ -207,6 +232,19 @@
     <div class="composer">
       <textarea id="composer-input" placeholder="Ask your team something..."></textarea>
       <button id="composer-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Expert booking modal -->
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal">
+    <h3 id="modal-expert-name">Book a session</h3>
+    <div class="sub" id="modal-expert-bio"></div>
+    <div class="slot-list" id="slot-list"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-confirm" disabled>Confirm booking</button>
     </div>
   </div>
 </div>
@@ -386,7 +424,9 @@ function renderEscalationChips() {
       if (dismiss) {
         pendingEscalations.delete(dismiss.dataset.eid);
         renderEscalationChips();
+        return;
       }
+      openBookingModal(info);
     });
     chips.appendChild(chip);
   }
@@ -411,6 +451,75 @@ async function triggerEscalation(topic) {
     }
   } catch (e) { /* expert matching failed, silently skip */ }
 }
+
+// ── Expert booking modal ─────────────────────────────────────────────────────
+let selectedSlot = null;
+let bookingExpert = null;
+
+async function openBookingModal(expert) {
+  bookingExpert = expert;
+  selectedSlot = null;
+  document.getElementById('modal-expert-name').textContent = expert.name;
+  document.getElementById('modal-expert-bio').textContent = expert.bio || '';
+  document.getElementById('modal-confirm').disabled = true;
+  document.getElementById('booking-modal').classList.add('visible');
+
+  const slotList = document.getElementById('slot-list');
+  slotList.innerHTML = '<div style="color:#888;font-size:13px;">Loading slots…</div>';
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const result = await api('/v1/marketplace/experts/' + expert.id + '/availability?date=' + today);
+    const slots = result.slots || [];
+    slotList.innerHTML = '';
+    if (slots.length === 0) {
+      slotList.innerHTML = '<div style="color:#888;font-size:13px;">No slots available today.</div>';
+      return;
+    }
+    for (const slot of slots) {
+      const btn = document.createElement('button');
+      btn.className = 'slot-btn';
+      const start = new Date(slot.startUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const end = new Date(slot.endUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      btn.textContent = start + ' – ' + end;
+      btn.dataset.slot = JSON.stringify(slot);
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedSlot = slot;
+        document.getElementById('modal-confirm').disabled = false;
+      });
+      slotList.appendChild(btn);
+    }
+  } catch (e) {
+    slotList.innerHTML = '<div style="color:#c00;font-size:13px;">Could not load slots.</div>';
+  }
+}
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('booking-modal').classList.remove('visible');
+});
+
+document.getElementById('modal-confirm').addEventListener('click', async () => {
+  if (!selectedSlot || !bookingExpert) return;
+  document.getElementById('modal-confirm').disabled = true;
+  try {
+    await api('/v1/marketplace/bookings', {
+      method: 'POST',
+      body: JSON.stringify({
+        expertId: bookingExpert.id,
+        startUtc: selectedSlot.startUtc,
+        endUtc: selectedSlot.endUtc,
+        sessionId: meetingSessionId,
+      }),
+    });
+    document.getElementById('booking-modal').classList.remove('visible');
+    addBubble('agent', '📅 Booking confirmed', '', bookingExpert.name + ' booked for ' + new Date(selectedSlot.startUtc).toLocaleString());
+  } catch (e) {
+    document.getElementById('modal-confirm').disabled = false;
+    addBubble('error', 'Booking failed', '', e.message);
+  }
+});
 
 async function pullPersonaContribution(info) {
   const lastUserMsg = [...document.querySelectorAll('.bubble.founder')]

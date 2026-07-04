@@ -238,5 +238,61 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
     }
   });
 
+  /**
+   * Issue a LiveKit room token for an expert joining a session.
+   * Identity is prefixed `expert-` so the media-coordinator can distinguish
+   * expert audio tracks from founder audio.
+   *
+   * POST /sessions/:id/expert-join-token
+   * Body: { expertId: string, expertName: string }
+   * Returns: { token, livekitUrl } or 422 VOICE_NOT_CONFIGURED
+   */
+  router.post('/sessions/:id/expert-join-token', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const sessionId = requireParam(req, 'id');
+      const body = req.body as Record<string, unknown>;
+      if (typeof body.expertId !== 'string' || !body.expertId.trim()) throw new ValidationError('expertId required');
+      if (typeof body.expertName !== 'string' || !body.expertName.trim()) throw new ValidationError('expertName required');
+
+      const livekitApiKey = process.env['LIVEKIT_API_KEY'];
+      const livekitApiSecret = process.env['LIVEKIT_API_SECRET'];
+      const livekitUrl = process.env['LIVEKIT_URL'];
+
+      if (!livekitApiKey || !livekitApiSecret || !livekitUrl) {
+        res.status(422).json({
+          error: 'VOICE_NOT_CONFIGURED',
+          message: 'LiveKit credentials not set — voice mode unavailable',
+        });
+        return;
+      }
+
+      const session = await getSession(tenantContext, postgres, sessionId);
+      if (!session) {
+        res.status(404).json({ error: 'NOT_FOUND', message: 'session not found' });
+        return;
+      }
+
+      const at = new AccessToken(livekitApiKey, livekitApiSecret, {
+        identity: `expert-${body.expertId as string}`,
+        name: body.expertName as string,
+        ttl: '2h',
+      });
+      at.addGrant({
+        roomJoin: true,
+        room: sessionId,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      });
+
+      const token = await at.toJwt();
+      log.info('expert join token issued', { sessionId, expertId: body.expertId });
+      res.status(200).json({ token, livekitUrl });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
   return router;
 }

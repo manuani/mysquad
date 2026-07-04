@@ -148,3 +148,60 @@ describe('meeting routes', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('expert-join-token endpoint', () => {
+  let server: Server;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    const { postgres } = createFakePostgres();
+    const app = express();
+    app.use(express.json());
+    app.use(buildMeetingRouter(postgres, {
+      debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
+      child: function() { return this as Logger; },
+    } as Logger));
+
+    await new Promise<void>((resolve) => { server = app.listen(0, () => resolve()); });
+    const { port } = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${port}`;
+  });
+
+  afterEach(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
+
+  it('returns 422 VOICE_NOT_CONFIGURED when LIVEKIT env vars absent', async () => {
+    const start = await fetch(`${baseUrl}/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      body: JSON.stringify({}),
+    });
+    const session = await start.json();
+
+    const res = await fetch(`${baseUrl}/sessions/${session.id}/expert-join-token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      body: JSON.stringify({ expertId: 'exp-1', expertName: 'Alice' }),
+    });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toBe('VOICE_NOT_CONFIGURED');
+  });
+
+  it('returns 400 VALIDATION_FAILED when expertId missing', async () => {
+    const start = await fetch(`${baseUrl}/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      body: JSON.stringify({}),
+    });
+    const session = await start.json();
+
+    const res = await fetch(`${baseUrl}/sessions/${session.id}/expert-join-token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      body: JSON.stringify({ expertName: 'Alice' }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('VALIDATION_FAILED');
+  });
+});
