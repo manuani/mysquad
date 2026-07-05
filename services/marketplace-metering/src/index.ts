@@ -13,6 +13,7 @@ import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
 import { buildMeteringRouter } from './routes.js';
+import { buildWebhookRouter } from './webhook.js';
 
 export type {
   MeteringEvent,
@@ -24,6 +25,7 @@ export { recordMeteringEvent, getTenantUsageSummary, estimateCostMicro } from '.
 
 export type { BillingClient, SubscriptionTier } from './stripe.js';
 export { createBillingClient } from './stripe.js';
+export { buildWebhookRouter } from './webhook.js';
 
 export const marketplace_meteringModule: ModuleDefinition = {
   name: 'marketplace-metering',
@@ -32,6 +34,9 @@ export const marketplace_meteringModule: ModuleDefinition = {
     const postgres = ctx.db.postgres as PostgresClient;
 
     const router = express.Router();
+    // Webhook needs raw body for Stripe signature verification — mount before json parser
+    router.use(express.raw({ type: 'application/json', limit: '256kb' }), buildWebhookRouter(postgres, log));
+    router.use(express.json({ limit: '256kb' }));
     router.use(buildMeteringRouter(postgres, log));
 
     router.get('/healthz', (_req, res) => {
