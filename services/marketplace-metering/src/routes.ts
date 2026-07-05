@@ -133,6 +133,34 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
     }
   });
 
+  router.post('/billing/checkout', async (req: Request, res: Response) => {
+    try {
+      const tc = tenantContextFromHeaders(req);
+      const body = req.body as Record<string, unknown>;
+      if (!VALID_TIERS.includes(body.tier as SubscriptionTier)) {
+        throw new ValidationError(`tier must be one of: ${VALID_TIERS.join(', ')}`);
+      }
+      if (typeof body.customerId !== 'string') throw new ValidationError('customerId required');
+      if (typeof body.successUrl !== 'string') throw new ValidationError('successUrl required');
+      if (typeof body.cancelUrl !== 'string') throw new ValidationError('cancelUrl required');
+      const result = await billing.createCheckoutSession(
+        body.customerId as string,
+        body.tier as SubscriptionTier,
+        body.successUrl as string,
+        body.cancelUrl as string,
+      );
+      log.info('stripe checkout session created', {
+        sessionId: result.sessionId,
+        tenantId: tc.tenantId,
+        tier: body.tier,
+        live: billing.isLive,
+      });
+      res.status(201).json({ ...result, live: billing.isLive });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
   router.post('/billing/subscribe', async (req: Request, res: Response) => {
     try {
       const tc = tenantContextFromHeaders(req);

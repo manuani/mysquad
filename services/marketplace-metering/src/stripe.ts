@@ -20,6 +20,12 @@ export interface BillingClient {
     customerId: string,
     tier: SubscriptionTier,
   ): Promise<{ subscriptionId: string; status: string }>;
+  createCheckoutSession(
+    customerId: string,
+    tier: SubscriptionTier,
+    successUrl: string,
+    cancelUrl: string,
+  ): Promise<{ checkoutUrl: string; sessionId: string }>;
   chargeExpertSession(
     customerId: string,
     amountCents: number,
@@ -45,6 +51,17 @@ export function createBillingClient(): BillingClient {
       },
       async createSubscription(customerId: string, tier: SubscriptionTier) {
         return { subscriptionId: `sub_stub_${customerId}_${tier}`, status: 'active' };
+      },
+      async createCheckoutSession(
+        customerId: string,
+        tier: SubscriptionTier,
+        successUrl: string,
+        _cancelUrl: string,
+      ): Promise<{ checkoutUrl: string; sessionId: string }> {
+        return {
+          checkoutUrl: `${successUrl}?stub=1&tier=${tier}&customer=${customerId}`,
+          sessionId: `cs_stub_${customerId}_${tier}`,
+        };
       },
       async chargeExpertSession(
         customerId: string,
@@ -79,6 +96,27 @@ export function createBillingClient(): BillingClient {
         expand: ['latest_invoice.payment_intent'],
       });
       return { subscriptionId: subscription.id, status: subscription.status };
+    },
+
+    async createCheckoutSession(
+      customerId: string,
+      tier: SubscriptionTier,
+      successUrl: string,
+      cancelUrl: string,
+    ): Promise<{ checkoutUrl: string; sessionId: string }> {
+      const priceId = STRIPE_PRICE_IDS[tier];
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: { tier },
+      });
+      return {
+        checkoutUrl: session.url ?? successUrl,
+        sessionId: session.id,
+      };
     },
 
     async chargeExpertSession(
