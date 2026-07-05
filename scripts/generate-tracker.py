@@ -211,7 +211,7 @@ ROWS = [
     ("P4", "S13 — CI / DevOps", "CI/CD", "GitHub remote: create repo, push code, configure branch protection", "Done", "Engineering", "manuani/mysquad; AWS secrets configured; CI green"),
     ("P4", "S13 — CI / DevOps", "CI/CD", "GitHub Actions auto-deploy on push to main", "Done", "Engineering", "deploy-staging.yml; build→ECR→migrations→ECS forced deploy"),
     ("P4", "S13 — CI / DevOps", "CI/CD", "Terraform remote state — S3 backend migration (1 command; bucket exists)", "Deferred", "Infra", ""),
-    ("P4", "S13 — CI / DevOps", "CI/CD", "Staging smoke test job in CI pipeline", "Deferred", "Engineering", ""),
+    ("P4", "S13 — CI / DevOps", "CI/CD", "Staging smoke test job in CI pipeline", "Done", "Engineering", "sprint21: smoke-test job in deploy-staging.yml; hits /healthz + /v1 + unauth metering"),
     ("P4", "S13 — CI / DevOps", "IAM", "Narrow IAM policy (scoped policy replacing broad managed policies)", "Deferred", "Infra", "Before co-founder / contractor access"),
 
     ("P4", "S14 — Production Environment", "Infra", "prod VPC + separate RDS Multi-AZ instance", "Deferred", "Infra", ""),
@@ -239,8 +239,9 @@ ROWS = [
     ("P4", "S18 — Security & Compliance", "Security", "HTTPS enforcement (redirect HTTP → HTTPS at ALB)", "Deferred", "Infra", ""),
     ("P4", "S18 — Security & Compliance", "Security", "Secrets rotation (Secrets Manager auto-rotate)", "Deferred", "Infra", ""),
     ("P4", "S18 — Security & Compliance", "Security", "Pen test / OWASP audit before public launch", "Deferred", "Engineering", ""),
-    ("P4", "S18 — Security & Compliance", "Security", "GDPR data deletion endpoint (tenant offboarding)", "Deferred", "Engineering", ""),
-    ("P4", "S18 — Security & Compliance", "Security", "Audit log: every data write recorded with actor + timestamp", "Deferred", "Engineering", ""),
+    ("P4", "S18 — Security & Compliance", "Security", "GDPR data deletion endpoint (tenant offboarding)", "Done", "Engineering", "sprint21: DELETE /v1/identity-and-tenancy/me?confirm=true; wipes all tenant rows"),
+    ("P4", "S18 — Security & Compliance", "Security", "Audit log: every data write recorded with actor + timestamp", "Done", "Engineering", "sprint22: @voai/audit package; auditMiddleware on /v1; append-only audit_log table"),
+    ("P4", "S18 — Security & Compliance", "Security", "Rate limiting (DoS/credential stuffing/metering runaway)", "Done", "Engineering", "sprint23: express-rate-limit; 3 tiers: global 1000/15min, auth 20/15min, metering 100/min"),
 ]
 
 # ─── Build workbook ────────────────────────────────────────────────────────────
