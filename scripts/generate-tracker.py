@@ -116,7 +116,7 @@ ROWS = [
     ("P1", "S4 — AWS Staging", "Database", "All 7 migrations applied (0000–0007)", "Done", "Engineering", "Includes performance + notification"),
     ("P1", "S4 — AWS Staging", "Database", "RLS policies active on staging RDS", "Done", "Engineering", ""),
     ("P1", "S4 — AWS Staging", "CI/CD", "GitHub Actions deploy-staging.yml", "Done", "Engineering", "Manual push currently; no GitHub remote yet"),
-    ("P1", "S4 — AWS Staging", "CI/CD", "GitHub remote + repo secrets (AWS keys)", "Pending", "Engineering", "Blocking full CI auto-deploy"),
+    ("P1", "S4 — AWS Staging", "CI/CD", "GitHub remote + repo secrets (AWS keys)", "Done", "Engineering", "manuani/mysquad; CI/Deploy both green"),
 
     # ── PHASE 2 ──────────────────────────────────────────────────────────────
     ("PHASE", "Phase 2 — Live Meeting Intelligence", "", "", "", "", ""),
@@ -180,18 +180,37 @@ ROWS = [
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe charge per expert session", "Done", "Engineering", "POST /billing/expert-charge; invoice items"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Expert payout (Stripe Connect)", "Pending", "Engineering", "Requires Stripe Connect onboarding — deferred to Phase 4"),
     ("P3", "S11 — Usage Metering & Billing", "routing", "Token routing: track per-tenant LLM spend via RoutingService", "Done", "Engineering", "RoutingService onUsage callback → recordMeteringEvent llm_tokens; sprint13"),
+    ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe webhook handler (subscription lifecycle)", "Done", "Engineering", "POST /billing/webhook; subscription.created/updated/deleted → update tenant plan; sprint16"),
+    ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe Checkout session endpoint", "Done", "Engineering", "POST /billing/checkout → checkoutUrl; stub when STRIPE_SECRET_KEY absent; sprint20"),
+    ("P3", "S11 — Usage Metering & Billing", "Payments", "Plan entitlement limits + quota enforcement", "Done", "Engineering", "GET /entitlement?dim=; starter 100 calls, growth 1000; sprint17"),
+    ("P3", "S11 — Usage Metering & Billing", "Payments", "Expert payout (Stripe Connect)", "Pending", "Engineering", "Requires Stripe Connect onboarding — deferred to Phase 4"),
 
     ("P3", "S12 — Admin Console", "admin-console-api", "Tenant provisioning endpoint — POST /tenants with x-admin-key auth", "Done", "Engineering", "sprint12"),
     ("P3", "S12 — Admin Console", "admin-console-api", "User management: invite, role assignment, deactivation", "Deferred", "Engineering", ""),
     ("P3", "S12 — Admin Console", "admin-console-api", "Usage dashboard — GET /tenants/:id/usage with metering breakdown", "Done", "Engineering", "sprint12"),
-    ("P3", "S12 — Admin Console", "admin-console-api", "Seat-based subscription tier enforcement in routing layer", "Deferred", "Engineering", ""),
+    ("P3", "S12 — Admin Console", "admin-console-api", "Seat-based subscription tier enforcement in routing layer", "Done", "Engineering", "checkEntitlement() seats dimension; sprint17"),
     ("P3", "S12 — Admin Console", "Admin UI", "Internal admin web app (separate from founder-facing demo UI)", "Deferred", "Product", ""),
+
+    ("P3", "S13 — Credentials & Voice", "Secrets Manager", "LiveKit URL + API key + secret stored in Secrets Manager", "Done", "Infra", "ECS task definition :10"),
+    ("P3", "S13 — Credentials & Voice", "Secrets Manager", "Deepgram API key stored in Secrets Manager", "Done", "Infra", "ECS task definition :11"),
+    ("P3", "S13 — Credentials & Voice", "Secrets Manager", "ElevenLabs API key stored in Secrets Manager", "Done", "Infra", "ECS task definition :12"),
+    ("P3", "S13 — Credentials & Voice", "Secrets Manager", "Voice persona IDs as plain ECS env vars", "Done", "Infra", "VOICE_ID_SARAH/PRIYA/MARCUS; ECS task definition :13"),
+    ("P3", "S13 — Credentials & Voice", "Secrets Manager", "Stripe webhook secret stored in Secrets Manager", "Done", "Infra", "ECS task definition :14"),
+
+    ("P3", "S14 — CI/CD & Migrations", "CI/CD", "GitHub repo (manuani/mysquad) + AWS secrets configured", "Done", "Engineering", "CI green; full build→typecheck→lint→test→deploy pipeline"),
+    ("P3", "S14 — CI/CD & Migrations", "CI/CD", "Prettier format check in CI", "Done", "Engineering", "All files formatted; CI format:check passes"),
+    ("P3", "S14 — CI/CD & Migrations", "Database", "Migration runner (packages/db/src/migrate.ts)", "Done", "Engineering", "schema_migrations tracking table; idempotent; sprint19"),
+    ("P3", "S14 — CI/CD & Migrations", "Database", "Auto-run migrations in deploy-staging.yml before ECS deploy", "Done", "Engineering", "run-migrations job fetches URL from Secrets Manager; sprint19"),
+    ("P3", "S14 — CI/CD & Migrations", "Database", "migrations 0009–0011 applied (metering, tenant_plan, stripe_customer_id)", "Done", "Engineering", ""),
+
+    ("P3", "S15 — Demo UI Hardening", "Demo UI", "Plan tier badge in meeting room header", "Done", "Product", "Fetches /v1/metering/entitlement on init; sprint18"),
+    ("P3", "S15 — Demo UI Hardening", "Demo UI", "Quota warning at 80% of monthly limit", "Done", "Product", "Amber badge showing current/limit; sprint18"),
 
     # ── PHASE 4 DEFERRED ─────────────────────────────────────────────────────
     ("PHASE", "Phase 4 — Scale & Production Hardening (Deferred)", "", "", "", "", ""),
 
-    ("P4", "S13 — CI / DevOps", "CI/CD", "GitHub remote: create repo, push code, configure branch protection", "Deferred", "Engineering", "Manual deploy works; unblocking after Phase 2"),
-    ("P4", "S13 — CI / DevOps", "CI/CD", "GitHub Actions auto-deploy on push to main", "Deferred", "Engineering", "Workflow exists; needs AWS secrets in repo"),
+    ("P4", "S13 — CI / DevOps", "CI/CD", "GitHub remote: create repo, push code, configure branch protection", "Done", "Engineering", "manuani/mysquad; AWS secrets configured; CI green"),
+    ("P4", "S13 — CI / DevOps", "CI/CD", "GitHub Actions auto-deploy on push to main", "Done", "Engineering", "deploy-staging.yml; build→ECR→migrations→ECS forced deploy"),
     ("P4", "S13 — CI / DevOps", "CI/CD", "Terraform remote state — S3 backend migration (1 command; bucket exists)", "Deferred", "Infra", ""),
     ("P4", "S13 — CI / DevOps", "CI/CD", "Staging smoke test job in CI pipeline", "Deferred", "Engineering", ""),
     ("P4", "S13 — CI / DevOps", "IAM", "Narrow IAM policy (scoped policy replacing broad managed policies)", "Deferred", "Infra", "Before co-founder / contractor access"),
