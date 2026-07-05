@@ -49,7 +49,9 @@ describe('AnthropicProvider', () => {
     expect(result).toEqual({
       content: 'hello there',
       model: 'claude-sonnet-4-5',
+      tier: 'high',
       usage: { inputTokens: 12, outputTokens: 4 },
+      totalCostMicro: expect.any(Number),
     });
 
     expect(createMock).toHaveBeenCalledWith(

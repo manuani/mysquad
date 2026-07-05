@@ -18,20 +18,32 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { PlatformError } from '@voai/errors';
-import type { LlmCompletionRequest, LlmCompletionResult, LlmProvider } from './provider.js';
+import type {
+  LlmCompletionRequest,
+  LlmCompletionResult,
+  LlmProvider,
+  ProviderTier,
+} from './provider.js';
+import { computeCostMicro } from './provider.js';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 const DEFAULT_MAX_TOKENS = 1024;
 
 export class AnthropicProvider implements LlmProvider {
   readonly id = 'anthropic';
+  readonly tier: ProviderTier;
 
   private readonly apiKey: string | undefined;
   private readonly model: string;
 
-  constructor(apiKey: string | undefined, model: string = DEFAULT_MODEL) {
+  constructor(
+    apiKey: string | undefined,
+    model: string = DEFAULT_MODEL,
+    tier: ProviderTier = 'high',
+  ) {
     this.apiKey = apiKey;
     this.model = model;
+    this.tier = tier;
   }
 
   async complete(request: LlmCompletionRequest): Promise<LlmCompletionResult> {
@@ -60,13 +72,14 @@ export class AnthropicProvider implements LlmProvider {
       .map((block) => block.text)
       .join('');
 
+    const inputTokens = response.usage.input_tokens;
+    const outputTokens = response.usage.output_tokens;
     return {
       content,
       model: response.model,
-      usage: {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      },
+      tier: this.tier,
+      usage: { inputTokens, outputTokens },
+      totalCostMicro: computeCostMicro(inputTokens, outputTokens, this.tier),
     };
   }
 }
