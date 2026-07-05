@@ -162,7 +162,6 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
     const q = req.query as Record<string, string>;
     const tenantId = q['x-tenant-id'] ?? req.header('x-tenant-id') ?? '';
     const userId = q['x-user-id'] ?? req.header('x-user-id') ?? '';
-    const userType = q['x-user-type'] ?? req.header('x-user-type') ?? 'founder';
     const sessionTk = q['x-session-id'] ?? req.header('x-session-id') ?? '';
 
     if (!tenantId || !userId || !sessionTk) {
