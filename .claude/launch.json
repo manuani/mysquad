@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dist/index.js"],
+      "port": 3000
+    },
+    {
+      "name": "demo-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "8080", "apps/api-server/public"],
+      "port": 8080
+    }
+  ]
+}
