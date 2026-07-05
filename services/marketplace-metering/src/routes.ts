@@ -4,6 +4,7 @@
  * Endpoints:
  *   POST /events                 — record a metering event
  *   GET  /usage?from=&to=        — get tenant usage summary for date range
+ *   GET  /entitlement?dim=       — check plan quota for a dimension
  *   POST /billing/customer       — create Stripe customer for tenant
  *   POST /billing/subscribe      — subscribe tenant to a tier
  *   POST /billing/expert-charge  — charge tenant for an expert session
@@ -16,6 +17,13 @@ import type { Logger } from '@voai/types';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import { recordMeteringEvent, getTenantUsageSummary, type MeteringEventType } from './metering.js';
 import { createBillingClient, type SubscriptionTier } from './stripe.js';
+import { checkEntitlement, type EntitlementDimension } from './entitlement.js';
+
+const VALID_DIMENSIONS: EntitlementDimension[] = [
+  'roster_calls_per_month',
+  'expert_sessions_per_month',
+  'seats',
+];
 
 const VALID_EVENT_TYPES: MeteringEventType[] = ['llm_tokens', 'expert_minutes', 'ai_roster_call'];
 const VALID_TIERS: SubscriptionTier[] = ['starter', 'growth', 'enterprise'];
@@ -87,6 +95,22 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
         getTenantUsageSummary(tc, client, from, to),
       );
       res.status(200).json(summary);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.get('/entitlement', async (req: Request, res: Response) => {
+    try {
+      const tc = tenantContextFromHeaders(req);
+      const dim = (req.query as Record<string, string>)['dim'] as EntitlementDimension;
+      if (!VALID_DIMENSIONS.includes(dim)) {
+        throw new ValidationError(`dim must be one of: ${VALID_DIMENSIONS.join(', ')}`);
+      }
+      const status = await postgres.withTenant(tc.tenantId, async (client) =>
+        checkEntitlement(tc, client, dim),
+      );
+      res.status(200).json(status);
     } catch (err) {
       handleError(err, res, log);
     }

@@ -26,6 +26,8 @@ export { recordMeteringEvent, getTenantUsageSummary, estimateCostMicro } from '.
 export type { BillingClient, SubscriptionTier } from './stripe.js';
 export { createBillingClient } from './stripe.js';
 export { buildWebhookRouter } from './webhook.js';
+export type { EntitlementDimension, EntitlementStatus, PlanTier } from './entitlement.js';
+export { checkEntitlement, getMonthlyUsage, PLAN_LIMITS } from './entitlement.js';
 
 export const marketplace_meteringModule: ModuleDefinition = {
   name: 'marketplace-metering',
