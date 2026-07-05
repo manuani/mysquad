@@ -31,6 +31,7 @@ import { createLogger } from '@voai/telemetry';
 import { createInProcessEventBus } from '@voai/events';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 
+import rateLimit from 'express-rate-limit';
 import { auditMiddleware } from '@voai/audit';
 import identityAndTenancyModule from '@voai/identity-and-tenancy';
 import meetingModule from '@voai/meeting';
@@ -105,6 +106,46 @@ async function main(): Promise<void> {
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+
+  // Global rate limit — broad DoS protection, keyed by IP
+  app.use(
+    '/v1',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 1000,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      message: { error: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+    }),
+  );
+
+  // Stricter limit on auth endpoints — prevents credential stuffing
+  app.use(
+    '/v1/identity-and-tenancy/sign',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 20,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      message: {
+        error: 'RATE_LIMITED',
+        message: 'Too many sign-in attempts, please try again later.',
+      },
+    }),
+  );
+
+  // Per-tenant AI/metering limit — prevents runaway token consumption
+  app.use(
+    '/v1/marketplace-metering',
+    rateLimit({
+      windowMs: 60 * 1000,
+      limit: 100,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      keyGenerator: (req) => req.header('x-tenant-id') ?? req.ip ?? 'unknown',
+      message: { error: 'RATE_LIMITED', message: 'Metering rate limit exceeded.' },
+    }),
+  );
 
   const postgres = db.postgres as Parameters<typeof auditMiddleware>[0];
   app.use('/v1', auditMiddleware(postgres));
