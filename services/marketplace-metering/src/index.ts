@@ -35,7 +35,10 @@ export const marketplace_meteringModule: ModuleDefinition = {
 
     const router = express.Router();
     // Webhook needs raw body for Stripe signature verification — mount before json parser
-    router.use(express.raw({ type: 'application/json', limit: '256kb' }), buildWebhookRouter(postgres, log));
+    router.use(
+      express.raw({ type: 'application/json', limit: '256kb' }),
+      buildWebhookRouter(postgres, log),
+    );
     router.use(express.json({ limit: '256kb' }));
     router.use(buildMeteringRouter(postgres, log));
 
