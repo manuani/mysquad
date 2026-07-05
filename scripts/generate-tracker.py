@@ -450,17 +450,10 @@ CREDS = [
      "ELEVENLABS_API_KEY",
      "AWS Secrets Manager\n/voai/staging/elevenlabs-api-key\n(ECS task def :12)",
      "✅ API key configured. Rotate at: elevenlabs.io → Profile → API Key"),
-    ("need", "ElevenLabs — Voice IDs",
+    ("have", "ElevenLabs — Voice IDs",
      "VOICE_ID_SARAH\nVOICE_ID_PRIYA\nVOICE_ID_MARCUS",
-     "ECS task definition\nenvironment vars (not yet set)",
-     "1. Go to elevenlabs.io → Voice Library\n"
-     "2. Pick 3 voices:\n"
-     "   Sarah (CFO) → professional female e.g. 'Rachel'\n"
-     "   Priya (CMO) → warm female e.g. 'Bella'\n"
-     "   Marcus (Devil's Advocate) → skeptical male e.g. 'Adam'\n"
-     "3. Click a voice → copy the Voice ID from the URL or voice card\n"
-     "4. Add VOICE_ID_SARAH, VOICE_ID_PRIYA, VOICE_ID_MARCUS\n"
-     "   to ECS task definition environment (plain env vars, not secrets)"),
+     "ECS task definition\nenvironment vars\n(task def :13)",
+     "✅ Configured.\nSarah: ecp3DWciuUyW7BYM7II1\nPriya: ZqvIIuD5aI9JFejebHiH\nMarcus: bfGb7JTLUnZebZRiFYyq"),
 
     ("need", "Stripe (Billing)",
      "STRIPE_SECRET_KEY\nSTRIPE_PRICE_STARTER\nSTRIPE_PRICE_GROWTH\nSTRIPE_PRICE_ENTERPRISE",
