@@ -446,15 +446,21 @@ CREDS = [
      "AWS Secrets Manager\n/voai/staging/deepgram-api-key\n(ECS task def :11)",
      "✅ Configured. Rotate at: console.deepgram.com → API Keys"),
 
-    ("need", "ElevenLabs (Text-to-Speech)",
-     "ELEVENLABS_API_KEY\nVOICE_ID_SARAH\nVOICE_ID_PRIYA\nVOICE_ID_MARCUS",
-     "AWS Secrets Manager\n(not yet created)",
-     "1. Go to elevenlabs.io → Sign up (free tier: 10k chars/mo)\n"
-     "2. Profile → API Key → Copy\n"
-     "3. Voice Library → pick 3 voices for Sarah / Priya / Marcus\n"
-     "   Click a voice → 'Use' → copy the Voice ID from the URL\n"
-     "4. Store API key in Secrets Manager\n"
-     "5. Add all 4 env vars to media-coordinator ECS service"),
+    ("have", "ElevenLabs — API Key",
+     "ELEVENLABS_API_KEY",
+     "AWS Secrets Manager\n/voai/staging/elevenlabs-api-key\n(ECS task def :12)",
+     "✅ API key configured. Rotate at: elevenlabs.io → Profile → API Key"),
+    ("need", "ElevenLabs — Voice IDs",
+     "VOICE_ID_SARAH\nVOICE_ID_PRIYA\nVOICE_ID_MARCUS",
+     "ECS task definition\nenvironment vars (not yet set)",
+     "1. Go to elevenlabs.io → Voice Library\n"
+     "2. Pick 3 voices:\n"
+     "   Sarah (CFO) → professional female e.g. 'Rachel'\n"
+     "   Priya (CMO) → warm female e.g. 'Bella'\n"
+     "   Marcus (Devil's Advocate) → skeptical male e.g. 'Adam'\n"
+     "3. Click a voice → copy the Voice ID from the URL or voice card\n"
+     "4. Add VOICE_ID_SARAH, VOICE_ID_PRIYA, VOICE_ID_MARCUS\n"
+     "   to ECS task definition environment (plain env vars, not secrets)"),
 
     ("need", "Stripe (Billing)",
      "STRIPE_SECRET_KEY\nSTRIPE_PRICE_STARTER\nSTRIPE_PRICE_GROWTH\nSTRIPE_PRICE_ENTERPRISE",
