@@ -31,6 +31,7 @@ import { createLogger } from '@voai/telemetry';
 import { createInProcessEventBus } from '@voai/events';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 
+import { auditMiddleware } from '@voai/audit';
 import identityAndTenancyModule from '@voai/identity-and-tenancy';
 import meetingModule from '@voai/meeting';
 import brainModule from '@voai/brain';
@@ -104,6 +105,9 @@ async function main(): Promise<void> {
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+
+  const postgres = db.postgres as Parameters<typeof auditMiddleware>[0];
+  app.use('/v1', auditMiddleware(postgres));
 
   const handles: ModuleHandle[] = [];
   for (const mod of MODULES) {

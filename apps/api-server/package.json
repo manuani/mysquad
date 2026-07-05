@@ -32,6 +32,7 @@
     "@voai/marketplace-metering": "workspace:*",
     "@voai/notification": "workspace:*",
     "@voai/admin-console-api": "workspace:*",
+    "@voai/audit": "workspace:*",
     "express": "^4.21.0"
   },
   "devDependencies": {
