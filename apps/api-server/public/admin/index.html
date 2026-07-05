@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VoAI Admin Console</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
+        background: #f5f5f5;
+        color: #1a1a1a;
+      }
+      header {
+        background: #1f3b5c;
+        color: #fff;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header h1 {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+      }
+      #key-badge {
+        font-size: 11px;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      #logout-btn {
+        margin-left: auto;
+        font-size: 12px;
+        background: none;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: #fff;
+        padding: 3px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 16px;
+      }
+      #login-screen {
+        max-width: 360px;
+        margin: 80px auto;
+        background: #fff;
+        border-radius: 12px;
+        padding: 32px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      }
+      #login-screen h2 {
+        font-size: 18px;
+        margin-bottom: 20px;
+        color: #1f3b5c;
+      }
+      input[type='text'],
+      input[type='password'],
+      input[type='email'],
+      select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d0d0d0;
+        border-radius: 6px;
+        font-size: 13px;
+        margin-bottom: 12px;
+        outline: none;
+      }
+      input:focus,
+      select:focus {
+        border-color: #2c5282;
+        box-shadow: 0 0 0 2px rgba(44, 82, 130, 0.15);
+      }
+      button.primary {
+        background: #2c5282;
+        color: #fff;
+        border: none;
+        padding: 9px 18px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        width: 100%;
+      }
+      button.primary:hover {
+        background: #1f3b5c;
+      }
+      button.sm {
+        background: none;
+        border: 1px solid #c0c0c0;
+        padding: 4px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        cursor: pointer;
+        color: #444;
+      }
+      button.sm:hover {
+        background: #f0f0f0;
+      }
+      button.danger {
+        color: #c00;
+        border-color: #f5b0b0;
+      }
+      button.danger:hover {
+        background: #fff0f0;
+      }
+      .section {
+        background: #fff;
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .section-header h2 {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1f3b5c;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th {
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #666;
+        padding: 6px 8px;
+        border-bottom: 1px solid #e8e8e8;
+      }
+      td {
+        padding: 8px 8px;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .badge-starter {
+        background: #f1efe8;
+        color: #5f5e5a;
+      }
+      .badge-growth {
+        background: #d0e8f7;
+        color: #0d2f4a;
+      }
+      .badge-enterprise {
+        background: #d6ecd9;
+        color: #1e4d2b;
+      }
+      .badge-active {
+        background: #d6ecd9;
+        color: #1e4d2b;
+      }
+      .badge-inactive {
+        background: #fde8e8;
+        color: #800;
+      }
+      .badge-founder {
+        background: #e8e0f8;
+        color: #3d1a8a;
+      }
+      .badge-admin {
+        background: #d0e8f7;
+        color: #0d2f4a;
+      }
+      .badge-expert {
+        background: #fff3cd;
+        color: #664d03;
+      }
+      .actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-overlay.open {
+        display: flex;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 12px;
+        padding: 28px;
+        width: 380px;
+        max-width: 95vw;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      }
+      .modal h3 {
+        font-size: 15px;
+        margin-bottom: 18px;
+        color: #1f3b5c;
+      }
+      .modal-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+      .modal-actions button {
+        width: auto;
+      }
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1f3b5c;
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+        z-index: 200;
+      }
+      #toast.show {
+        opacity: 1;
+      }
+      .error-msg {
+        color: #c00;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      .empty-state {
+        text-align: center;
+        color: #888;
+        padding: 24px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Login Screen -->
+    <div id="login-screen">
+      <h2>VoAI Admin Console</h2>
+      <p id="login-error" class="error-msg" style="display: none"></p>
+      <input type="password" id="admin-key-input" placeholder="Admin API key (x-admin-key)" />
+      <button class="primary" onclick="login()">Sign in</button>
+    </div>
+
+    <!-- Main App (hidden until logged in) -->
+    <div id="app" style="display: none">
+      <header>
+        <h1>VoAI Admin Console</h1>
+        <span id="key-badge">●&nbsp;connected</span>
+        <button id="logout-btn" onclick="logout()">Sign out</button>
+      </header>
+
+      <main>
+        <!-- Tenant list -->
+        <div class="section">
+          <div class="section-header">
+            <h2>Tenants</h2>
+            <button class="sm" onclick="openProvisionModal()">+ Provision tenant</button>
+          </div>
+          <table id="tenants-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>MTD cost</th>
+                <th>Roster calls</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tenants-body">
+              <tr>
+                <td colspan="8" class="empty-state">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Users panel (shown when a tenant is selected) -->
+        <div class="section" id="users-panel" style="display: none">
+          <div class="section-header">
+            <h2 id="users-heading">Users</h2>
+            <div style="display: flex; gap: 8px">
+              <button class="sm" onclick="closeUsersPanel()">✕ Close</button>
+              <button class="sm" onclick="openInviteModal()">+ Invite user</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="users-body">
+              <tr>
+                <td colspan="5" class="empty-state">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+
+    <!-- Provision Tenant Modal -->
+    <div class="modal-overlay" id="provision-modal">
+      <div class="modal">
+        <h3>Provision new tenant</h3>
+        <p id="provision-error" class="error-msg" style="display: none"></p>
+        <input type="text" id="provision-name" placeholder="Company name" />
+        <input type="email" id="provision-email" placeholder="Founder email" />
+        <select id="provision-plan">
+          <option value="starter">Starter</option>
+          <option value="growth">Growth</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+        <div class="modal-actions">
+          <button class="sm" onclick="closeModal('provision-modal')">Cancel</button>
+          <button class="primary" onclick="provisionTenant()">Provision</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div class="modal-overlay" id="invite-modal">
+      <div class="modal">
+        <h3>Invite user to <span id="invite-tenant-name"></span></h3>
+        <p id="invite-error" class="error-msg" style="display: none"></p>
+        <input type="email" id="invite-email" placeholder="User email" />
+        <select id="invite-role">
+          <option value="founder">Founder</option>
+          <option value="admin">Admin</option>
+          <option value="expert">Expert</option>
+        </select>
+        <div class="modal-actions">
+          <button class="sm" onclick="closeModal('invite-modal')">Cancel</button>
+          <button class="primary" onclick="inviteUser()">Invite</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+      const API = '/v1/admin-console-api';
+      let adminKey = '';
+      let selectedTenantId = '';
+      let selectedTenantName = '';
+
+      // ── Auth ─────────────────────────────────────────────────────────────────
+
+      function login() {
+        const k = document.getElementById('admin-key-input').value.trim();
+        if (!k) return;
+        adminKey = k;
+        sessionStorage.setItem('voai-admin-key', k);
+        showApp();
+      }
+
+      function logout() {
+        adminKey = '';
+        sessionStorage.removeItem('voai-admin-key');
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'block';
+      }
+
+      function showApp() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        loadTenants();
+      }
+
+      // ── API helpers ───────────────────────────────────────────────────────────
+
+      async function api(method, path, body) {
+        const opts = {
+          method,
+          headers: { 'x-admin-key': adminKey, 'content-type': 'application/json' },
+        };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(API + path, opts);
+        if (res.status === 401) {
+          showError('login-error', 'Invalid admin key');
+          logout();
+          throw new Error('401');
+        }
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!res.ok) throw new Error(data?.message ?? `HTTP ${res.status}`);
+        return data;
+      }
+
+      // ── Tenants ───────────────────────────────────────────────────────────────
+
+      async function loadTenants() {
+        try {
+          const { tenants } = await api('GET', '/tenants');
+          renderTenants(tenants);
+        } catch (e) {
+          document.getElementById('tenants-body').innerHTML =
+            `<tr><td colspan="8" class="empty-state">Error loading tenants: ${e.message}</td></tr>`;
+        }
+      }
+
+      function renderTenants(tenants) {
+        const tbody = document.getElementById('tenants-body');
+        if (!tenants.length) {
+          tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No tenants yet</td></tr>';
+          return;
+        }
+        tbody.innerHTML = tenants
+          .map(
+            (t) => `
+          <tr>
+            <td><strong>${esc(t.name)}</strong></td>
+            <td>${esc(t.email)}</td>
+            <td><span class="badge badge-${t.plan}">${t.plan}</span></td>
+            <td><span class="badge badge-${t.status}">${t.status}</span></td>
+            <td>$${(t.totalCostMicroThisMonth / 1_000_000).toFixed(4)}</td>
+            <td>${t.totalRosterCallsThisMonth}</td>
+            <td>${fmtDate(t.createdAt)}</td>
+            <td class="actions">
+              <button class="sm" onclick="showUsers('${t.tenantId}', '${esc(t.name)}')">Users</button>
+            </td>
+          </tr>`,
+          )
+          .join('');
+      }
+
+      function openProvisionModal() {
+        clearModal('provision-modal', ['provision-name', 'provision-email']);
+        openModal('provision-modal');
+      }
+
+      async function provisionTenant() {
+        const name = document.getElementById('provision-name').value.trim();
+        const email = document.getElementById('provision-email').value.trim();
+        const plan = document.getElementById('provision-plan').value;
+        if (!name || !email) return showError('provision-error', 'Name and email required');
+        try {
+          await api('POST', '/tenants', { name, email, plan });
+          closeModal('provision-modal');
+          toast('Tenant provisioned');
+          loadTenants();
+        } catch (e) {
+          showError('provision-error', e.message);
+        }
+      }
+
+      // ── Users ─────────────────────────────────────────────────────────────────
+
+      async function showUsers(tenantId, tenantName) {
+        selectedTenantId = tenantId;
+        selectedTenantName = tenantName;
+        document.getElementById('users-heading').textContent = `Users — ${tenantName}`;
+        document.getElementById('users-panel').style.display = 'block';
+        document.getElementById('users-body').innerHTML =
+          '<tr><td colspan="5" class="empty-state">Loading…</td></tr>';
+        await loadUsers();
+        document.getElementById('users-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function closeUsersPanel() {
+        document.getElementById('users-panel').style.display = 'none';
+        selectedTenantId = '';
+      }
+
+      async function loadUsers() {
+        try {
+          const { users } = await api('GET', `/tenants/${selectedTenantId}/users`);
+          renderUsers(users);
+        } catch (e) {
+          document.getElementById('users-body').innerHTML =
+            `<tr><td colspan="5" class="empty-state">Error: ${e.message}</td></tr>`;
+        }
+      }
+
+      function renderUsers(users) {
+        const tbody = document.getElementById('users-body');
+        if (!users.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users in this tenant</td></tr>';
+          return;
+        }
+        tbody.innerHTML = users
+          .map(
+            (u) => `
+          <tr>
+            <td>${esc(u.email)}</td>
+            <td><span class="badge badge-${u.role}">${u.role}</span></td>
+            <td><span class="badge badge-${u.active ? 'active' : 'inactive'}">${u.active ? 'active' : 'inactive'}</span></td>
+            <td>${fmtDate(u.createdAt)}</td>
+            <td class="actions">
+              <select onchange="changeRole('${u.userId}', this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #d0d0d0;border-radius:4px">
+                <option value="">Change role…</option>
+                <option value="founder">Founder</option>
+                <option value="admin">Admin</option>
+                <option value="expert">Expert</option>
+              </select>
+              ${u.active ? `<button class="sm danger" onclick="deactivateUser('${u.userId}', '${esc(u.email)}')">Deactivate</button>` : ''}
+            </td>
+          </tr>`,
+          )
+          .join('');
+      }
+
+      function openInviteModal() {
+        document.getElementById('invite-tenant-name').textContent = selectedTenantName;
+        clearModal('invite-modal', ['invite-email']);
+        openModal('invite-modal');
+      }
+
+      async function inviteUser() {
+        const email = document.getElementById('invite-email').value.trim();
+        const role = document.getElementById('invite-role').value;
+        if (!email) return showError('invite-error', 'Email required');
+        try {
+          const result = await api('POST', `/tenants/${selectedTenantId}/users/invite`, {
+            email,
+            role,
+          });
+          closeModal('invite-modal');
+          toast(`Invited ${result.email} — share token: ${result.inviteToken}`);
+          loadUsers();
+        } catch (e) {
+          showError('invite-error', e.message);
+        }
+      }
+
+      async function changeRole(userId, role) {
+        if (!role) return;
+        try {
+          await api('PATCH', `/tenants/${selectedTenantId}/users/${userId}/role`, { role });
+          toast('Role updated');
+          loadUsers();
+        } catch (e) {
+          toast(`Error: ${e.message}`);
+        }
+      }
+
+      async function deactivateUser(userId, email) {
+        if (!confirm(`Deactivate ${email}? This will revoke all their sessions immediately.`)) return;
+        try {
+          await api('DELETE', `/tenants/${selectedTenantId}/users/${userId}`);
+          toast(`${email} deactivated`);
+          loadUsers();
+        } catch (e) {
+          toast(`Error: ${e.message}`);
+        }
+      }
+
+      // ── Utilities ─────────────────────────────────────────────────────────────
+
+      function esc(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function fmtDate(iso) {
+        return new Date(iso).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        });
+      }
+
+      function openModal(id) {
+        document.getElementById(id).classList.add('open');
+      }
+
+      function closeModal(id) {
+        document.getElementById(id).classList.remove('open');
+      }
+
+      function clearModal(id, inputIds) {
+        document.getElementById(id + '-error') && showError(id + '-error', null);
+        inputIds.forEach((i) => (document.getElementById(i).value = ''));
+      }
+
+      function showError(id, msg) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (msg) {
+          el.textContent = msg;
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      }
+
+      let toastTimer;
+      function toast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+      }
+
+      // Close modal on overlay click
+      document.querySelectorAll('.modal-overlay').forEach((overlay) => {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) overlay.classList.remove('open');
+        });
+      });
+
+      // Auto-login from session storage
+      const saved = sessionStorage.getItem('voai-admin-key');
+      if (saved) {
+        adminKey = saved;
+        showApp();
+      }
+    </script>
+  </body>
+</html>
