@@ -105,6 +105,40 @@ jobs:
           docker push "$IMAGE_URI:latest"
           echo "image_uri=$IMAGE_URI:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
+  run-migrations:
+    name: Run database migrations
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch MIGRATIONS_DATABASE_URL from Secrets Manager
+        id: get-db-url
+        run: |
+          URL=$(aws secretsmanager get-secret-value \
+            --secret-id "voai/staging/migrations-database-url" \
+            --query SecretString --output text)
+          echo "::add-mask::$URL"
+          echo "MIGRATIONS_DATABASE_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: Apply pending migrations
+        run: pnpm --filter @voai/db migrate
+
   deploy-to-ecs:
     name: Force a new ECS deployment and wait for it to stabilize
     # ECS does not watch ECR for new image digests the way App Runner's
@@ -113,7 +147,7 @@ jobs:
     # to new AWS customers). Pushing a new :latest image is not enough on
     # its own; the service needs an explicit forced redeployment to pick
     # it up.
-    needs: build-and-push
+    needs: [build-and-push, run-migrations]
     runs-on: ubuntu-latest
     env:
       ECS_CLUSTER: voai-staging
