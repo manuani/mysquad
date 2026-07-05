@@ -30,6 +30,7 @@ export type { AuthProvider, AuthResult, ProviderIdentity, SignInMethod } from '.
 export { DevAuthProvider } from './dev-auth-provider.js';
 export {
   createTenantWithFounder,
+  deleteTenantData,
   findUserByEmailAcrossTenants,
   getUserInTenant,
   SYSTEM_TENANT,
@@ -49,7 +50,7 @@ export const identityAndTenancyModule: ModuleDefinition = {
     const postgres = ctx.db.postgres as PostgresClient;
     const authProvider = new DevAuthProvider(postgres);
 
-    const router = buildIdentityAndTenancyRouter(authProvider, log);
+    const router = buildIdentityAndTenancyRouter(authProvider, log, postgres);
 
     router.get('/healthz', (_req, res) => {
       res.json({ module: 'identity-and-tenancy', status: 'healthy' });

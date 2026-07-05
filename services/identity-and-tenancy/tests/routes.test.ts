@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConflictError, NotFoundError, UnauthenticatedError } from '@voai/errors';
 import type { Logger } from '@voai/types';
+import { vi } from 'vitest';
 import type { AuthProvider, AuthResult, SignInMethod } from '../src/auth-provider.js';
 import { buildIdentityAndTenancyRouter } from '../src/routes.js';
 
@@ -52,6 +53,13 @@ class FakeAuthProvider implements AuthProvider {
   }
 }
 
+const fakePostgres = {
+  withTenant: vi.fn((_tenantId: string, fn: (client: unknown) => Promise<unknown>) =>
+    fn({ query: vi.fn().mockResolvedValue({ rows: [] }) }),
+  ),
+  adminQuery: vi.fn().mockResolvedValue([]),
+};
+
 describe('identity-and-tenancy routes', () => {
   let server: Server;
   let baseUrl: string;
@@ -59,9 +67,11 @@ describe('identity-and-tenancy routes', () => {
 
   beforeEach(async () => {
     fakeProvider = new FakeAuthProvider();
+    vi.clearAllMocks();
     const app = express();
     app.use(express.json());
-    app.use(buildIdentityAndTenancyRouter(fakeProvider, noopLogger));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    app.use(buildIdentityAndTenancyRouter(fakeProvider, noopLogger, fakePostgres as any));
 
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => resolve());
@@ -163,6 +173,40 @@ describe('identity-and-tenancy routes', () => {
 
   it('POST /signout without a bearer token returns 401', async () => {
     const res = await fetch(`${baseUrl}/signout`, { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+
+  it('DELETE /me without confirm=true returns 400', async () => {
+    const res = await fetch(`${baseUrl}/me`, {
+      method: 'DELETE',
+      headers: { authorization: 'Bearer token-abc' },
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('VALIDATION_FAILED');
+  });
+
+  it('DELETE /me without bearer token returns 401', async () => {
+    const res = await fetch(`${baseUrl}/me`, { method: 'DELETE' });
+    expect(res.status).toBe(401);
+  });
+
+  it('DELETE /me?confirm=true deletes tenant data and returns 204', async () => {
+    const res = await fetch(`${baseUrl}/me?confirm=true`, {
+      method: 'DELETE',
+      headers: { authorization: 'Bearer token-abc' },
+    });
+    expect(res.status).toBe(204);
+    // withTenant should have been called at least once (for the tenant-scoped deletes)
+    expect(fakePostgres.withTenant).toHaveBeenCalled();
+  });
+
+  it('DELETE /me?confirm=true with invalid session returns 401', async () => {
+    fakeProvider.sessionToResolve = null;
+    const res = await fetch(`${baseUrl}/me?confirm=true`, {
+      method: 'DELETE',
+      headers: { authorization: 'Bearer bad-token' },
+    });
     expect(res.status).toBe(401);
   });
 });

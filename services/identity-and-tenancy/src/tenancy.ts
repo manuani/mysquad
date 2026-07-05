@@ -167,6 +167,38 @@ export async function findUserByEmailAcrossTenants(
 }
 
 /**
+ * GDPR "right to erasure" — permanently deletes all data belonging to the
+ * tenant. Order matters: child rows (RLS-protected) must go before the
+ * parent `tenants` row (which anchors the RLS setting).
+ *
+ * Tables not touched here (brain_items, sessions, ledger rows, etc.) are
+ * owned by other services that also have RLS — those rows will be
+ * unreachable once the tenant row and auth_sessions are gone. A follow-up
+ * cross-service cascade job (deferred) can hard-delete them on a cron.
+ */
+export async function deleteTenantData(
+  tenantContext: TenantContext,
+  postgres: PostgresClient,
+): Promise<void> {
+  const { tenantId } = tenantContext;
+
+  // Delete RLS-protected tables while scoped to the tenant
+  await postgres.withTenant(tenantId, async (client) => {
+    await client.query('DELETE FROM auth_sessions WHERE tenant_id = $1', [tenantId]);
+    await client.query('DELETE FROM metering_events WHERE tenant_id = $1', [tenantId]);
+    await client.query('DELETE FROM monthly_usage_rollup WHERE tenant_id = $1', [tenantId]);
+    await client.query('DELETE FROM identity_tenants WHERE id = $1', [tenantId]);
+    await client.query('DELETE FROM users WHERE tenant_id = $1', [tenantId]);
+    await client.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+  });
+
+  // email_tenant_index has no RLS — clean it up under SYSTEM_TENANT
+  await postgres.withTenant(SYSTEM_TENANT, async (client) => {
+    await client.query('DELETE FROM email_tenant_index WHERE tenant_id = $1', [tenantId]);
+  });
+}
+
+/**
  * Looks up the user this `TenantContext` was built for. Demonstrates the
  * normal post-authentication access pattern: `tenantContext` first,
  * `withTenant(tenantContext.tenantId, ...)`, RLS enforces the rest.

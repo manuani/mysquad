@@ -12,7 +12,9 @@ import { Router, type Request, type Response } from 'express';
 import { buildTenantContext } from '@voai/auth-context';
 import { isPlatformError, UnauthenticatedError, ValidationError } from '@voai/errors';
 import type { Logger } from '@voai/types';
+import type { PostgresClient } from '@voai/db';
 import type { AuthProvider, SignInMethod } from './auth-provider.js';
+import { deleteTenantData } from './tenancy.js';
 
 const SIGN_IN_METHODS: readonly SignInMethod[] = [
   'apple',
@@ -61,7 +63,11 @@ function parseSignUpInRequest(req: Request): { email: string; method: SignInMeth
   return { email, method };
 }
 
-export function buildIdentityAndTenancyRouter(authProvider: AuthProvider, log: Logger): Router {
+export function buildIdentityAndTenancyRouter(
+  authProvider: AuthProvider,
+  log: Logger,
+  postgres: PostgresClient,
+): Router {
   const router = Router();
 
   router.post('/signup', async (req: Request, res: Response) => {
@@ -118,6 +124,36 @@ export function buildIdentityAndTenancyRouter(authProvider: AuthProvider, log: L
         throw new UnauthenticatedError('missing bearer session token');
       }
       await authProvider.signOut(token);
+      res.status(204).send();
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  // GDPR "right to erasure" — DELETE /me?confirm=true
+  // Permanently wipes all tenant data. Requires the caller to pass
+  // ?confirm=true so no accidental single-click deletions.
+  router.delete('/me', async (req: Request, res: Response) => {
+    try {
+      const token = extractBearerToken(req);
+      if (!token) {
+        throw new UnauthenticatedError('missing bearer session token');
+      }
+      const session = await authProvider.resolveSession(token);
+      if (!session) {
+        throw new UnauthenticatedError('session token invalid or expired');
+      }
+      if ((req.query as Record<string, string>)['confirm'] !== 'true') {
+        throw new ValidationError('pass ?confirm=true to confirm permanent data deletion');
+      }
+      const tenantContext = buildTenantContext({
+        tenantId: session.tenantId,
+        userId: session.userId,
+        userType: session.userType,
+        sessionId: session.sessionToken,
+      });
+      await deleteTenantData(tenantContext, postgres);
+      log.info('tenant data deleted (GDPR erasure)', { tenantId: tenantContext.tenantId });
       res.status(204).send();
     } catch (err) {
       handleError(err, res, log);
