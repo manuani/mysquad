@@ -178,7 +178,7 @@ ROWS = [
     ("P3", "S11 — Usage Metering & Billing", "marketplace-metering", "Monthly usage summary per tenant", "Done", "Engineering", "GET /usage?from=&to= → UsageSummary; monthly_usage_rollup table"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe subscription tiers (starter/growth/enterprise)", "Done", "Engineering", "POST /billing/subscribe; stubs when STRIPE_SECRET_KEY absent"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe charge per expert session", "Done", "Engineering", "POST /billing/expert-charge; invoice items"),
-    ("P3", "S11 — Usage Metering & Billing", "Payments", "Expert payout (Stripe Connect)", "Pending", "Engineering", "Requires Stripe Connect onboarding — deferred to Phase 4"),
+    ("P3", "S11 — Usage Metering & Billing", "Payments", "Expert payout (Stripe Connect)", "Deferred", "Engineering", "Requires Stripe Connect onboarding — deferred to Phase 4"),
     ("P3", "S11 — Usage Metering & Billing", "routing", "Token routing: track per-tenant LLM spend via RoutingService", "Done", "Engineering", "RoutingService onUsage callback → recordMeteringEvent llm_tokens; sprint13"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe webhook handler (subscription lifecycle)", "Done", "Engineering", "POST /billing/webhook; subscription.created/updated/deleted → update tenant plan; sprint16"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe Checkout session endpoint", "Done", "Engineering", "POST /billing/checkout → checkoutUrl; stub when STRIPE_SECRET_KEY absent; sprint20"),
