@@ -142,10 +142,10 @@ ROWS = [
     ("P2", "S7 — LLM Arbiter", "agent-runtime", "Configurable max-speakers-per-turn limit", "Done", "Engineering", "DEFAULT_MAX_SPEAKERS=2"),
     ("P2", "S7 — LLM Arbiter", "performance", "Silence penalty integration: use weekly score to boost quiet personas", "Done", "Engineering", "silenceScore = min(minutesSilent/30, 1.0)"),
 
-    ("P2", "S8 — Voice Pipeline", "Infrastructure", "LiveKit Cloud account + project", "Pending", "Infra", "Requires manual account creation + LIVEKIT_* env vars"),
-    ("P2", "S8 — Voice Pipeline", "Infrastructure", "LiveKit room-per-session provisioning", "Pending", "Infra", "Token per session issued by meeting service"),
-    ("P2", "S8 — Voice Pipeline", "Infrastructure", "Deepgram streaming STT account + API key in Secrets Manager", "Pending", "Infra", "SDK wired; set DEEPGRAM_API_KEY to activate"),
-    ("P2", "S8 — Voice Pipeline", "Infrastructure", "ElevenLabs TTS account + voice IDs per persona", "Pending", "Infra", "SDK wired; set ELEVENLABS_API_KEY to activate"),
+    ("P2", "S8 — Voice Pipeline", "Infrastructure", "LiveKit Cloud account + project", "Done", "Infra", "wss://mysquad-3z2qrqie.livekit.cloud; API key in Secrets Manager"),
+    ("P2", "S8 — Voice Pipeline", "Infrastructure", "LiveKit room-per-session provisioning", "Done", "Infra", "POST /voice-token + /expert-join-token; AccessToken JWT per session"),
+    ("P2", "S8 — Voice Pipeline", "Infrastructure", "Deepgram streaming STT account + API key in Secrets Manager", "Done", "Infra", "DEEPGRAM_API_KEY in Secrets Manager; ECS task def :11"),
+    ("P2", "S8 — Voice Pipeline", "Infrastructure", "ElevenLabs TTS account + voice IDs per persona", "Done", "Infra", "API key + 3 voice IDs in Secrets Manager / ECS env; task def :12-13"),
     ("P2", "S8 — Voice Pipeline", "media-coordinator", "Audio pipeline coordinator: receive STT transcript chunks", "Done", "Engineering", "apps/media-coordinator Express service on port 3001"),
     ("P2", "S8 — Voice Pipeline", "media-coordinator", "Route transcript chunks to agent-runtime", "Done", "Engineering", "pipeline.ts: STT → /v1/agent-runtime/contributions/roster"),
     ("P2", "S8 — Voice Pipeline", "media-coordinator", "Receive agent text response → send to ElevenLabs TTS", "Done", "Engineering", "tts.ts createTtsClient; graceful no-op when key absent"),
@@ -183,7 +183,6 @@ ROWS = [
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe webhook handler (subscription lifecycle)", "Done", "Engineering", "POST /billing/webhook; subscription.created/updated/deleted → update tenant plan; sprint16"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Stripe Checkout session endpoint", "Done", "Engineering", "POST /billing/checkout → checkoutUrl; stub when STRIPE_SECRET_KEY absent; sprint20"),
     ("P3", "S11 — Usage Metering & Billing", "Payments", "Plan entitlement limits + quota enforcement", "Done", "Engineering", "GET /entitlement?dim=; starter 100 calls, growth 1000; sprint17"),
-    ("P3", "S11 — Usage Metering & Billing", "Payments", "Expert payout (Stripe Connect)", "Pending", "Engineering", "Requires Stripe Connect onboarding — deferred to Phase 4"),
 
     ("P3", "S12 — Admin Console", "admin-console-api", "Tenant provisioning endpoint — POST /tenants with x-admin-key auth", "Done", "Engineering", "sprint12"),
     ("P3", "S12 — Admin Console", "admin-console-api", "User management: invite, role assignment, deactivation", "Deferred", "Engineering", ""),
