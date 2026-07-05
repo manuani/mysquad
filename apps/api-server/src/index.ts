@@ -24,6 +24,7 @@
 
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { loadConfig } from '@voai/config';
 import { createDatabaseClients } from '@voai/db';
@@ -106,6 +107,15 @@ async function main(): Promise<void> {
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+
+  // Propagate or generate a request-scoped trace ID. Stored in res.locals
+  // so any handler can include it in log output or error responses.
+  app.use((_req, res, next) => {
+    const requestId = _req.header('x-request-id') ?? randomUUID();
+    res.setHeader('x-request-id', requestId);
+    res.locals['requestId'] = requestId;
+    next();
+  });
 
   // Global rate limit — broad DoS protection, keyed by IP
   app.use(
