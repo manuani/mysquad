@@ -175,6 +175,9 @@ async function main(): Promise<void> {
   const demoDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
   app.use('/demo', express.static(demoDir));
 
+  const adminDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'admin');
+  app.use('/admin', express.static(adminDir));
+
   app.get('/healthz', async (_req, res) => {
     const results = await Promise.all(
       handles.map(async (h) => ({ module: h.name, ...(await h.health()) })),
