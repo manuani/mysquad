@@ -474,15 +474,17 @@ CREDS = [
      "   Copy the numeric event type ID from the URL\n"
      "4. Add both env vars to ECS task definition environment"),
 
-    ("need", "GitHub (CI/CD)",
-     "GITHUB_TOKEN (implicit)\nAWS_ACCESS_KEY_ID (repo secret)\nAWS_SECRET_ACCESS_KEY (repo secret)",
-     "GitHub repo secrets\n(repo not yet created)",
-     "1. Create GitHub repo: gh repo create mysquad/voai-platform --private\n"
-     "2. git remote add origin https://github.com/mysquad/voai-platform.git\n"
-     "3. git push -u origin main\n"
-     "4. Repo → Settings → Secrets → Actions → add:\n"
-     "   AWS_ACCESS_KEY_ID  (from ~/.aws/credentials [voai-staging])\n"
-     "   AWS_SECRET_ACCESS_KEY  (from ~/.aws/credentials [voai-staging])"),
+    ("have", "GitHub repo",
+     "— (code pushed)",
+     "github.com/manuani/mysquad\n(main branch)",
+     "✅ Repo created and code pushed.\nRemote: https://github.com/manuani/mysquad.git"),
+    ("need", "GitHub CI/CD secrets",
+     "AWS_ACCESS_KEY_ID\nAWS_SECRET_ACCESS_KEY",
+     "GitHub repo secrets\n(not yet added)",
+     "Run in terminal after gh auth login:\n"
+     "gh secret set AWS_ACCESS_KEY_ID --repo manuani/mysquad --body \"AKIAYS5M73Q4H5NMV7FS\"\n"
+     "gh secret set AWS_SECRET_ACCESS_KEY --repo manuani/mysquad --body \"$(aws configure get aws_secret_access_key --profile voai-staging)\"\n"
+     "Then every push to main auto-deploys to ECS staging."),
 
     # ── OPTIONAL / PHASE 4 ───────────────────────────────────────────────────
     ("optional", "WorkOS (SSO / AuthKit)",
