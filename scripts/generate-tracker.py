@@ -441,14 +441,10 @@ CREDS = [
      "✅ Configured. Project: mysquad-3z2qrqie.livekit.cloud\n"
      "Rotate at: cloud.livekit.io → Settings → Keys"),
 
-    ("need", "Deepgram (Speech-to-Text)",
+    ("have", "Deepgram (Speech-to-Text)",
      "DEEPGRAM_API_KEY",
-     "AWS Secrets Manager\n(not yet created)",
-     "1. Go to console.deepgram.com → Sign up (free $200 credit)\n"
-     "2. Dashboard → API Keys → Create a new API key\n"
-     "3. Scope: 'usage' is sufficient for STT\n"
-     "4. aws secretsmanager create-secret --name /voai/staging/deepgram-api-key ...\n"
-     "5. Add DEEPGRAM_API_KEY to media-coordinator ECS service env"),
+     "AWS Secrets Manager\n/voai/staging/deepgram-api-key\n(ECS task def :11)",
+     "✅ Configured. Rotate at: console.deepgram.com → API Keys"),
 
     ("need", "ElevenLabs (Text-to-Speech)",
      "ELEVENLABS_API_KEY\nVOICE_ID_SARAH\nVOICE_ID_PRIYA\nVOICE_ID_MARCUS",
