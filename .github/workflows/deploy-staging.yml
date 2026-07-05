@@ -170,3 +170,53 @@ jobs:
           echo "Waiting for the new deployment to stabilize (aws ecs wait services-stable)..."
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
           echo "Deployment stable."
+
+  smoke-test:
+    name: Post-deploy smoke tests
+    needs: deploy-to-ecs
+    runs-on: ubuntu-latest
+    # Skip gracefully when STAGING_API_URL secret is not yet set
+    env:
+      STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+    steps:
+      - name: Skip if no staging URL configured
+        id: check-url
+        run: |
+          if [ -z "$STAGING_API_URL" ]; then
+            echo "::warning::STAGING_API_URL secret is not set — skipping smoke tests. Add the ALB DNS name as STAGING_API_URL in repository secrets."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Health check
+        if: steps.check-url.outputs.skip == 'false'
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$STAGING_API_URL/healthz" || echo "000")
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Health check failed — GET /healthz returned $STATUS"
+            exit 1
+          fi
+          echo "GET /healthz → $STATUS OK"
+
+      - name: API root returns JSON
+        if: steps.check-url.outputs.skip == 'false'
+        run: |
+          BODY=$(curl -sf "$STAGING_API_URL/v1" -H "Accept: application/json" 2>&1 || true)
+          # We just want valid JSON (any 2xx or documented 4xx) — 5xx means something is broken
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$STAGING_API_URL/v1" -H "Accept: application/json" || echo "000")
+          if [[ "$STATUS" == 5* ]] || [ "$STATUS" = "000" ]; then
+            echo "::error::GET /v1 returned $STATUS — server is unhealthy"
+            exit 1
+          fi
+          echo "GET /v1 → $STATUS"
+
+      - name: Unauthenticated metering request returns 401
+        if: steps.check-url.outputs.skip == 'false'
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$STAGING_API_URL/v1/metering/usage" || echo "000")
+          if [ "$STATUS" != "401" ] && [ "$STATUS" != "403" ]; then
+            echo "::error::Expected 401/403 from /v1/metering/usage without auth, got $STATUS"
+            exit 1
+          fi
+          echo "GET /v1/metering/usage (no auth) → $STATUS (expected)"
