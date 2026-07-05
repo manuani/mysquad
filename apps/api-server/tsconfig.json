@@ -22,7 +22,8 @@
     { "path": "../../services/marketplace" },
     { "path": "../../services/marketplace-metering" },
     { "path": "../../services/notification" },
-    { "path": "../../services/admin-console-api" }
+    { "path": "../../services/admin-console-api" },
+    { "path": "../../packages/audit" }
   ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]
