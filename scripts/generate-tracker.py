@@ -435,15 +435,11 @@ CREDS = [
      "Already provisioned. URL format:\nredis://HOST:6379"),
 
     # ── NEED TO GET ──────────────────────────────────────────────────────────
-    ("need", "LiveKit Cloud",
+    ("have", "LiveKit Cloud",
      "LIVEKIT_URL\nLIVEKIT_API_KEY\nLIVEKIT_API_SECRET",
-     "AWS Secrets Manager\n(not yet created)",
-     "1. Go to livekit.io/cloud → Sign up (free tier available)\n"
-     "2. Create a project (e.g. 'voai-staging')\n"
-     "3. Dashboard → Settings → Keys → Generate API Key\n"
-     "4. Copy URL (wss://YOUR-PROJECT.livekit.cloud), Key, Secret\n"
-     "5. aws secretsmanager create-secret --name /voai/staging/livekit-url ...\n"
-     "6. Add all 3 vars to ECS task definition environment"),
+     "AWS Secrets Manager\n/voai/staging/livekit-*\n(ECS task def :10)",
+     "✅ Configured. Project: mysquad-3z2qrqie.livekit.cloud\n"
+     "Rotate at: cloud.livekit.io → Settings → Keys"),
 
     ("need", "Deepgram (Speech-to-Text)",
      "DEEPGRAM_API_KEY",
