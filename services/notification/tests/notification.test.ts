@@ -51,7 +51,9 @@ function makeDefaultPreferencesRow(tenantId: string): PreferencesRow {
   };
 }
 
-function makeMockPostgres(queryFn: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }>): PostgresClient {
+function makeMockPostgres(
+  queryFn: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }>,
+): PostgresClient {
   return {
     withTenant: async <T>(_tenantId: string, fn: (client: TenantScopedClient) => Promise<T>) => {
       const client: TenantScopedClient = {
@@ -97,17 +99,30 @@ describe('handleGetPreferences', () => {
 describe('handleGetBriefing', () => {
   it('calls Anthropic with activity data and returns briefing shape', async () => {
     const decisions = [
-      { id: 'dec-1', decision_type: 'strategic', summary: 'Pivot to B2B', state: 'active', created_at: new Date().toISOString() },
+      {
+        id: 'dec-1',
+        decision_type: 'strategic',
+        summary: 'Pivot to B2B',
+        state: 'active',
+        created_at: new Date().toISOString(),
+      },
     ];
     const actions = [
-      { id: 'act-1', assigned_to: 'founder', state: 'pending', due_at: null, created_at: new Date().toISOString() },
+      {
+        id: 'act-1',
+        assigned_to: 'founder',
+        state: 'pending',
+        due_at: null,
+        created_at: new Date().toISOString(),
+      },
     ];
     const conflicts: never[] = [];
 
-    const queryFn = vi.fn()
-      .mockResolvedValueOnce({ rows: decisions })   // decisions query
-      .mockResolvedValueOnce({ rows: actions })     // actions query
-      .mockResolvedValueOnce({ rows: conflicts });  // conflicts query
+    const queryFn = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: decisions }) // decisions query
+      .mockResolvedValueOnce({ rows: actions }) // actions query
+      .mockResolvedValueOnce({ rows: conflicts }); // conflicts query
 
     const postgres = makeMockPostgres(queryFn);
 
@@ -119,12 +134,20 @@ describe('handleGetBriefing', () => {
     };
     const mockCreate = MockAnthropic._mockCreate;
     mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: '• Pivot decision logged\n• One pending action for founder' }],
+      content: [
+        { type: 'text', text: '• Pivot decision logged\n• One pending action for founder' },
+      ],
     });
 
-    const anthropic = new (AnthropicModule.default as unknown as new (opts: { apiKey: string | undefined }) => { messages: { create: typeof mockCreate } })({ apiKey: 'test-key' });
+    const anthropic = new (AnthropicModule.default as unknown as new (opts: {
+      apiKey: string | undefined;
+    }) => { messages: { create: typeof mockCreate } })({ apiKey: 'test-key' });
 
-    const briefing = await handleGetBriefing(TENANT_CONTEXT, postgres, anthropic as unknown as import('@anthropic-ai/sdk').default);
+    const briefing = await handleGetBriefing(
+      TENANT_CONTEXT,
+      postgres,
+      anthropic as unknown as import('@anthropic-ai/sdk').default,
+    );
 
     // Shape checks
     expect(briefing).toHaveProperty('generatedAt');
@@ -196,11 +219,10 @@ describe('handleUpdatePreferences', () => {
     const queryFn = vi.fn().mockResolvedValue({ rows: [updatedRow] });
     const postgres = makeMockPostgres(queryFn);
 
-    await handleUpdatePreferences(
-      TENANT_CONTEXT,
-      postgres,
-      { morningBriefingEnabled: false, alertOnConflict: false },
-    );
+    await handleUpdatePreferences(TENANT_CONTEXT, postgres, {
+      morningBriefingEnabled: false,
+      alertOnConflict: false,
+    });
 
     const [sql] = queryFn.mock.calls[0]!;
     expect(sql).toContain('morning_briefing_enabled');

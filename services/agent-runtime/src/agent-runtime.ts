@@ -22,7 +22,12 @@ import type { TenantContext } from '@voai/auth-context';
 import type { LlmMessage, RoutingService } from '@voai/routing';
 import type { EventBus } from '@voai/types';
 import type { AgentPersona } from './personas/sarah-cfo.js';
-import { Arbiter, DEFAULT_MAX_SPEAKERS, GATE_PASS_THRESHOLD, type GatedPersona } from './arbiter.js';
+import {
+  Arbiter,
+  DEFAULT_MAX_SPEAKERS,
+  GATE_PASS_THRESHOLD,
+  type GatedPersona,
+} from './arbiter.js';
 
 export interface ConversationTurn {
   readonly role: 'user' | 'assistant';
@@ -154,7 +159,11 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       };
     } catch {
       // Parse failure → allow contribution (fail open)
-      return { shouldRespond: true, relevanceScore: 1.0, reason: 'gate parse failed, defaulting to respond' };
+      return {
+        shouldRespond: true,
+        relevanceScore: 1.0,
+        reason: 'gate parse failed, defaulting to respond',
+      };
     }
   }
 
@@ -222,7 +231,13 @@ A ${persona.role} should respond when the topic directly touches their domain. S
 
     // Phase 1: run all gates in parallel (cheap Haiku calls, ~80 tokens each)
     const gateResults = options?.skipGate
-      ? personas.map((): ResponseGateResult => ({ shouldRespond: true, relevanceScore: 1.0, reason: 'gate skipped' }))
+      ? personas.map(
+          (): ResponseGateResult => ({
+            shouldRespond: true,
+            relevanceScore: 1.0,
+            reason: 'gate skipped',
+          }),
+        )
       : await Promise.all(
           personas.map((persona) =>
             this.checkShouldRespond(tenantContext, persona, input.message, input.priorTurns),
@@ -258,7 +273,9 @@ A ${persona.role} should respond when the topic directly touches their domain. S
         activePersonas.map((persona) =>
           this.generateContribution(tenantContext, persona, {
             ...input,
-            teammates: personas.filter((p) => p.id !== persona.id).map((p) => ({ name: p.name, role: p.role })),
+            teammates: personas
+              .filter((p) => p.id !== persona.id)
+              .map((p) => ({ name: p.name, role: p.role })),
           }),
         ),
       );
@@ -269,7 +286,12 @@ A ${persona.role} should respond when the topic directly touches their domain. S
         if (result.status === 'fulfilled') {
           output[idx] = { ...output[idx]!, persona, contribution: result.value, error: null };
         } else {
-          output[idx] = { ...output[idx]!, persona, contribution: null, error: String(result.reason) };
+          output[idx] = {
+            ...output[idx]!,
+            persona,
+            contribution: null,
+            error: String(result.reason),
+          };
         }
       });
     }
@@ -317,7 +339,9 @@ A ${persona.role} should respond when the topic directly touches their domain. S
     const gateResults: ResponseGateResult[] = options?.skipGate
       ? personas.map(() => ({ shouldRespond: true, relevanceScore: 1.0, reason: 'gate skipped' }))
       : await Promise.all(
-          personas.map((p) => this.checkShouldRespond(tenantContext, p, input.message, input.priorTurns)),
+          personas.map((p) =>
+            this.checkShouldRespond(tenantContext, p, input.message, input.priorTurns),
+          ),
         );
 
     // Keep full AgentPersona objects keyed by id so we can recover them after
@@ -330,7 +354,10 @@ A ${persona.role} should respond when the topic directly touches their domain. S
     personas.forEach((persona, i) => {
       const gate = gateResults[i]!;
       if (gate.shouldRespond && gate.relevanceScore >= GATE_PASS_THRESHOLD) {
-        passing.push({ persona: { id: persona.id, name: persona.name, role: persona.role }, relevanceScore: gate.relevanceScore });
+        passing.push({
+          persona: { id: persona.id, name: persona.name, role: persona.role },
+          relevanceScore: gate.relevanceScore,
+        });
       } else {
         skipped.push({ persona, gateResult: gate });
       }
@@ -356,7 +383,9 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       // Build a system-prompt suffix so this persona knows what was already said
       let priorContext: readonly string[] | undefined = input.brainContext;
       if (priorResponses.length > 0) {
-        const priorBlock = priorResponses.map((c, idx) => `${ranked[idx]!.persona.name}: ${c}`).join('\n\n');
+        const priorBlock = priorResponses
+          .map((c, idx) => `${ranked[idx]!.persona.name}: ${c}`)
+          .join('\n\n');
         const priorNote = `Your teammates in this turn have already responded:\n${priorBlock}\n\nAdd your perspective. You may reference what they said, but do not simply repeat it.`;
         priorContext = [...(input.brainContext ?? []), priorNote];
       }
@@ -390,7 +419,11 @@ A ${persona.role} should respond when the topic directly touches their domain. S
   async observeSkippedPersonas(
     tenantContext: TenantContext,
     skippedPersonas: ReadonlyArray<{ persona: AgentPersona; gateResult: ResponseGateResult }>,
-    input: { message: string; priorTurns?: readonly ConversationTurn[]; contributionsSoFar: string[] },
+    input: {
+      message: string;
+      priorTurns?: readonly ConversationTurn[];
+      contributionsSoFar: string[];
+    },
     sessionId: string,
     events: EventBus,
   ): Promise<void> {

@@ -20,7 +20,9 @@ import type { LlmMessage } from './provider.js';
 
 function handleError(err: unknown, res: Response): void {
   if (isPlatformError(err)) {
-    res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
+    res
+      .status(err.httpStatus)
+      .json({ error: err.code, message: err.message, details: err.details });
     return;
   }
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
@@ -48,7 +50,11 @@ function isLlmMessage(value: unknown): value is LlmMessage {
   return (v.role === 'user' || v.role === 'assistant') && typeof v.content === 'string';
 }
 
-function parseCompletionBody(body: unknown): { systemPrompt: string; messages: LlmMessage[]; maxTokens?: number } {
+function parseCompletionBody(body: unknown): {
+  systemPrompt: string;
+  messages: LlmMessage[];
+  maxTokens?: number;
+} {
   if (typeof body !== 'object' || body === null) {
     throw new ValidationError('request body must be a JSON object');
   }

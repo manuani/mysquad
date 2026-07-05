@@ -27,15 +27,27 @@ describe('generateOrderedContributions', () => {
       call++;
       // Gate calls (maxTokens 80) return valid JSON
       if (req.maxTokens === 80) {
-        return { content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"relevant"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        return {
+          content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"relevant"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
       }
-      return { content: `contribution-${call}`, model: 'fake', usage: { inputTokens: 10, outputTokens: 5 } };
+      return {
+        content: `contribution-${call}`,
+        model: 'fake',
+        usage: { inputTokens: 10, outputTokens: 5 },
+      };
     });
 
     const runtime = new AgentRuntime(routing);
-    const { ordered } = await runtime.generateOrderedContributions(TC, [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA], {
-      message: 'How should we grow?',
-    });
+    const { ordered } = await runtime.generateOrderedContributions(
+      TC,
+      [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA],
+      {
+        message: 'How should we grow?',
+      },
+    );
 
     expect(ordered.length).toBeGreaterThanOrEqual(1);
     expect(ordered.every((r) => r.rank > 0)).toBe(true);
@@ -46,7 +58,11 @@ describe('generateOrderedContributions', () => {
   it('each contribution has agentName and content', async () => {
     const routing = makeRouting((req) => {
       if (req.maxTokens === 80) {
-        return { content: '{"shouldRespond":true,"relevanceScore":0.85,"reason":"ok"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        return {
+          content: '{"shouldRespond":true,"relevanceScore":0.85,"reason":"ok"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
       }
       return { content: 'good insight', model: 'fake', usage: { inputTokens: 5, outputTokens: 5 } };
     });
@@ -67,10 +83,18 @@ describe('generateOrderedContributions', () => {
     const routing = makeRouting((req) => {
       if (req.maxTokens === 80) {
         gateCall++;
-        return { content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"ok"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        return {
+          content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"ok"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
       }
       capturedPrompts.push(req.systemPrompt);
-      return { content: `response-${capturedPrompts.length}`, model: 'fake', usage: { inputTokens: 5, outputTokens: 5 } };
+      return {
+        content: `response-${capturedPrompts.length}`,
+        model: 'fake',
+        usage: { inputTokens: 5, outputTokens: 5 },
+      };
     });
 
     const runtime = new AgentRuntime(routing);
@@ -92,9 +116,17 @@ describe('generateOrderedContributions', () => {
       if (req.maxTokens === 80) {
         const body = req.messages[0]?.content ?? '';
         if (body.includes('Chief Financial')) {
-          return { content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"finance topic"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+          return {
+            content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"finance topic"}',
+            model: 'fake',
+            usage: { inputTokens: 1, outputTokens: 1 },
+          };
         }
-        return { content: '{"shouldRespond":false,"relevanceScore":0.2,"reason":"not relevant"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        return {
+          content: '{"shouldRespond":false,"relevanceScore":0.2,"reason":"not relevant"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
       }
       return { content: 'sarah reply', model: 'fake', usage: { inputTokens: 5, outputTokens: 5 } };
     });
@@ -112,7 +144,11 @@ describe('generateOrderedContributions', () => {
   it('respects maxSpeakers cap even when all personas pass the gate', async () => {
     const routing = makeRouting((req) => {
       if (req.maxTokens === 80) {
-        return { content: '{"shouldRespond":true,"relevanceScore":0.95,"reason":"all pass"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        return {
+          content: '{"shouldRespond":true,"relevanceScore":0.95,"reason":"all pass"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
       }
       return { content: 'contribution', model: 'fake', usage: { inputTokens: 5, outputTokens: 5 } };
     });
@@ -131,17 +167,19 @@ describe('generateOrderedContributions', () => {
   it('compositeScore is between 0 and 1 inclusive', async () => {
     const routing = makeRouting((req) => {
       if (req.maxTokens === 80) {
-        return { content: '{"shouldRespond":true,"relevanceScore":0.7,"reason":"ok"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+        return {
+          content: '{"shouldRespond":true,"relevanceScore":0.7,"reason":"ok"}',
+          model: 'fake',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
       }
       return { content: 'ok', model: 'fake', usage: { inputTokens: 5, outputTokens: 5 } };
     });
 
     const runtime = new AgentRuntime(routing);
-    const { ordered } = await runtime.generateOrderedContributions(
-      TC,
-      [SARAH_CFO_PERSONA],
-      { message: 'question' },
-    );
+    const { ordered } = await runtime.generateOrderedContributions(TC, [SARAH_CFO_PERSONA], {
+      message: 'question',
+    });
 
     for (const r of ordered) {
       expect(r.compositeScore).toBeGreaterThanOrEqual(0);

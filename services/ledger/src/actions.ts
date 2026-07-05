@@ -129,15 +129,23 @@ export async function getAction(
   actionId: string,
 ): Promise<ActionRow | null> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<ActionSqlRow>('select * from actions where id = $1', [actionId]);
+    const result = await client.query<ActionSqlRow>('select * from actions where id = $1', [
+      actionId,
+    ]);
     const row = result.rows[0];
     return row ? toAction(row) : null;
   });
 }
 
-export async function listActions(tenantContext: TenantContext, postgres: PostgresClient): Promise<ActionRow[]> {
+export async function listActions(
+  tenantContext: TenantContext,
+  postgres: PostgresClient,
+): Promise<ActionRow[]> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<ActionSqlRow>('select * from actions order by created_at desc', []);
+    const result = await client.query<ActionSqlRow>(
+      'select * from actions order by created_at desc',
+      [],
+    );
     return result.rows.map(toAction);
   });
 }
@@ -159,7 +167,9 @@ function validateStateRequirements(input: TransitionActionStateInput): void {
     throw new ValidationError('snoozedUntil is required when transitioning to snoozed');
   }
   if (input.state === 'delegated_to_expert' && !input.delegatedToExpertId) {
-    throw new ValidationError('delegatedToExpertId is required when transitioning to delegated_to_expert');
+    throw new ValidationError(
+      'delegatedToExpertId is required when transitioning to delegated_to_expert',
+    );
   }
 }
 
@@ -178,16 +188,19 @@ export async function transitionActionState(
   validateStateRequirements(input);
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<ActionSqlRow>('select * from actions where id = $1', [input.actionId]);
+    const existing = await client.query<ActionSqlRow>('select * from actions where id = $1', [
+      input.actionId,
+    ]);
     const existingRow = existing.rows[0];
     if (!existingRow) throw new NotFoundError(`action ${input.actionId} not found`);
 
     assertValidActionTransition(existingRow.state, input.state);
 
     const completedAt = input.state === 'completed' ? new Date().toISOString() : null;
-    const blockedReason = input.state === 'blocked' ? input.blockedReason ?? null : null;
-    const snoozedUntil = input.state === 'snoozed' ? input.snoozedUntil ?? null : null;
-    const delegatedToExpertId = input.state === 'delegated_to_expert' ? input.delegatedToExpertId ?? null : null;
+    const blockedReason = input.state === 'blocked' ? (input.blockedReason ?? null) : null;
+    const snoozedUntil = input.state === 'snoozed' ? (input.snoozedUntil ?? null) : null;
+    const delegatedToExpertId =
+      input.state === 'delegated_to_expert' ? (input.delegatedToExpertId ?? null) : null;
 
     const result = await client.query<ActionSqlRow>(
       `update actions set
@@ -200,7 +213,15 @@ export async function transitionActionState(
         updated_at = now()
        where id = $1
        returning *`,
-      [input.actionId, input.state, blockedReason, snoozedUntil, delegatedToExpertId, completedAt, input.outcome ?? null],
+      [
+        input.actionId,
+        input.state,
+        blockedReason,
+        snoozedUntil,
+        delegatedToExpertId,
+        completedAt,
+        input.outcome ?? null,
+      ],
     );
     const row = result.rows[0];
     if (!row) throw new Error('failed to transition action');

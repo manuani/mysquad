@@ -61,7 +61,7 @@ hand-raise/orchestration pipeline (ADR 011), which has not been built.
   full sentence essentially never matches real content) and search by
   keyword; falls back to the most recently updated items across all eight
   domains if no keyword matches, so a new or unmatched query still gets
-  *some* business context rather than none.
+  _some_ business context rather than none.
 - **HTTP routes** (`src/routes.ts`), header-based tenant-context pattern
   matching `services/brain/src/routes.ts` (no gateway auth middleware
   yet):

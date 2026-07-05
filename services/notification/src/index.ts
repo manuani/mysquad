@@ -119,7 +119,8 @@ async function updatePreferences(
         params,
       );
       const retryRow = retry.rows[0];
-      if (!retryRow) throw new Error('UPDATE notification_preferences returned no row after insert');
+      if (!retryRow)
+        throw new Error('UPDATE notification_preferences returned no row after insert');
       return rowToPreferences(retryRow);
     }
 

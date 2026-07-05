@@ -22,7 +22,11 @@ import { recordMeteringEvent, estimateCostMicro } from '@voai/marketplace-meteri
 import { buildAgentRuntimeRouter } from './routes.js';
 
 export { AgentRuntime } from './agent-runtime.js';
-export type { AgentContribution, AgentContributionInput, ConversationTurn } from './agent-runtime.js';
+export type {
+  AgentContribution,
+  AgentContributionInput,
+  ConversationTurn,
+} from './agent-runtime.js';
 export { Arbiter, DEFAULT_MAX_SPEAKERS, GATE_PASS_THRESHOLD } from './arbiter.js';
 export type { ArbiterPersona, GatedPersona, RankedPersona } from './arbiter.js';
 export { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
@@ -53,16 +57,20 @@ export const agent_runtimeModule: ModuleDefinition = {
 
     const onUsage: OnUsageCallback = (event) => {
       const { totalCost } = estimateCostMicro(event.model, event.inputTokens, event.outputTokens);
-      return postgres.withTenant(event.tenantContext.tenantId, (client) =>
-        recordMeteringEvent(event.tenantContext, client, {
-          sessionId: event.sessionId,
-          eventType: 'llm_tokens',
-          quantity: event.inputTokens + event.outputTokens,
-          model: event.model,
-          unitCostMicro: Math.round(totalCost / Math.max(1, event.inputTokens + event.outputTokens)),
-          metadata: { inputTokens: event.inputTokens, outputTokens: event.outputTokens },
-        }),
-      ).then(() => undefined);
+      return postgres
+        .withTenant(event.tenantContext.tenantId, (client) =>
+          recordMeteringEvent(event.tenantContext, client, {
+            sessionId: event.sessionId,
+            eventType: 'llm_tokens',
+            quantity: event.inputTokens + event.outputTokens,
+            model: event.model,
+            unitCostMicro: Math.round(
+              totalCost / Math.max(1, event.inputTokens + event.outputTokens),
+            ),
+            metadata: { inputTokens: event.inputTokens, outputTokens: event.outputTokens },
+          }),
+        )
+        .then(() => undefined);
     };
 
     const provider = new AnthropicProvider(config.anthropicApiKey);

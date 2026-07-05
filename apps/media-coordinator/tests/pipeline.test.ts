@@ -30,7 +30,12 @@ function makeOpts(overrides: Partial<Parameters<typeof createPipelineSession>[2]
     tenantId: 'tenant-1',
     userId: 'user-1',
     apiServerUrl: 'http://localhost:3000',
-    authHeaders: { 'x-tenant-id': 'tenant-1', 'x-user-id': 'user-1', 'x-user-type': 'founder', 'x-session-id': 'tok' },
+    authHeaders: {
+      'x-tenant-id': 'tenant-1',
+      'x-user-id': 'user-1',
+      'x-user-type': 'founder',
+      'x-session-id': 'tok',
+    },
     onContributions: vi.fn(),
     onTranscriptChunk: vi.fn(),
     onError: vi.fn(),
@@ -41,7 +46,9 @@ function makeOpts(overrides: Partial<Parameters<typeof createPipelineSession>[2]
 describe('createPipelineSession', () => {
   it('returns a session with sendAudio and close', () => {
     let emitFn: ((text: string, isFinal: boolean) => void) | undefined;
-    const stt = makeStt((e) => { emitFn = e; });
+    const stt = makeStt((e) => {
+      emitFn = e;
+    });
     const sess = createPipelineSession(stt, makeTts(), makeOpts());
     expect(typeof sess.sendAudio).toBe('function');
     expect(typeof sess.close).toBe('function');
@@ -50,7 +57,9 @@ describe('createPipelineSession', () => {
   it('calls onTranscriptChunk for each STT event', () => {
     const onTranscriptChunk = vi.fn();
     let emitFn!: (text: string, isFinal: boolean) => void;
-    const stt = makeStt((e) => { emitFn = e; });
+    const stt = makeStt((e) => {
+      emitFn = e;
+    });
     createPipelineSession(stt, makeTts(), makeOpts({ onTranscriptChunk }));
 
     emitFn('hello', false);
@@ -63,7 +72,9 @@ describe('createPipelineSession', () => {
   it('calls onError when agent-runtime fetch fails', async () => {
     const onError = vi.fn();
     let emitFn!: (text: string, isFinal: boolean) => void;
-    const stt = makeStt((e) => { emitFn = e; });
+    const stt = makeStt((e) => {
+      emitFn = e;
+    });
 
     // Mock fetch to reject
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connection refused')));
@@ -73,7 +84,9 @@ describe('createPipelineSession', () => {
 
     // Wait for async processing
     await new Promise((r) => setTimeout(r, 50));
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('connection refused') }));
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('connection refused') }),
+    );
 
     vi.unstubAllGlobals();
   });
@@ -81,16 +94,27 @@ describe('createPipelineSession', () => {
   it('calls onContributions after successful fetch', async () => {
     const onContributions = vi.fn();
     let emitFn!: (text: string, isFinal: boolean) => void;
-    const stt = makeStt((e) => { emitFn = e; });
+    const stt = makeStt((e) => {
+      emitFn = e;
+    });
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        contributions: [
-          { agentName: 'Sarah Chen', role: 'CFO', contribution: { content: 'Your burn is 3 months.' }, rank: 1, skipped: false },
-        ],
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          contributions: [
+            {
+              agentName: 'Sarah Chen',
+              role: 'CFO',
+              contribution: { content: 'Your burn is 3 months.' },
+              rank: 1,
+              skipped: false,
+            },
+          ],
+        }),
       }),
-    }));
+    );
 
     createPipelineSession(stt, makeTts(), makeOpts({ onContributions }));
     emitFn('what is our runway', true);
@@ -109,24 +133,35 @@ describe('createPipelineSession', () => {
     const onContributions = vi.fn();
     const tts = { synthesise: vi.fn().mockResolvedValue(Buffer.from('audio')) };
     let emitFn!: (text: string, isFinal: boolean) => void;
-    const stt = makeStt((e) => { emitFn = e; });
+    const stt = makeStt((e) => {
+      emitFn = e;
+    });
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        contributions: [
-          { agentName: 'Sarah Chen', role: 'CFO', contribution: { content: 'reply' }, rank: 1, skipped: false },
-          { agentName: 'Priya Reddy', role: 'CMO', contribution: null, rank: 0, skipped: true },
-        ],
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          contributions: [
+            {
+              agentName: 'Sarah Chen',
+              role: 'CFO',
+              contribution: { content: 'reply' },
+              rank: 1,
+              skipped: false,
+            },
+            { agentName: 'Priya Reddy', role: 'CMO', contribution: null, rank: 0, skipped: true },
+          ],
+        }),
       }),
-    }));
+    );
 
     createPipelineSession(stt, tts, makeOpts({ onContributions }));
     emitFn('question', true);
 
     await new Promise((r) => setTimeout(r, 50));
     // TTS should only be called for the non-skipped persona
-    const [batch] = onContributions.mock.calls[0] as [typeof onContributions.mock.calls[0][0]];
+    const [batch] = onContributions.mock.calls[0] as [(typeof onContributions.mock.calls)[0][0]];
     expect(batch).toHaveLength(1);
     expect(batch[0].agentName).toBe('Sarah Chen');
 
@@ -136,7 +171,9 @@ describe('createPipelineSession', () => {
   it('onError called when agent-runtime returns non-ok status', async () => {
     const onError = vi.fn();
     let emitFn!: (text: string, isFinal: boolean) => void;
-    const stt = makeStt((e) => { emitFn = e; });
+    const stt = makeStt((e) => {
+      emitFn = e;
+    });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
 
@@ -144,7 +181,9 @@ describe('createPipelineSession', () => {
     emitFn('question', true);
 
     await new Promise((r) => setTimeout(r, 50));
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('500') }));
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('500') }),
+    );
 
     vi.unstubAllGlobals();
   });

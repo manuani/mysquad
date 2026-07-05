@@ -15,8 +15,20 @@ import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types'
 import type { PostgresClient, Neo4jClient } from '@voai/db';
 import { buildMarketplaceRouter } from './routes.js';
 
-export type { ExpertProfile, ExpertDomainTag, ExpertWithTags, CreateExpertInput, UpdateExpertInput } from './experts.js';
-export { createExpert, getExpert, listExperts, updateExpert, addExpertDomainTag } from './experts.js';
+export type {
+  ExpertProfile,
+  ExpertDomainTag,
+  ExpertWithTags,
+  CreateExpertInput,
+  UpdateExpertInput,
+} from './experts.js';
+export {
+  createExpert,
+  getExpert,
+  listExperts,
+  updateExpert,
+  addExpertDomainTag,
+} from './experts.js';
 
 export type { MatchedExpert } from './matching.js';
 export { matchExperts, scoreExpert } from './matching.js';

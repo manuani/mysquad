@@ -29,7 +29,7 @@ function tokenise(text: string): Set<string> {
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
-      .filter((t) => t.length > 2),  // drop stopwords / short tokens
+      .filter((t) => t.length > 2), // drop stopwords / short tokens
   );
 }
 
@@ -75,7 +75,9 @@ export async function matchExperts(
       matchedDomains: matchedDomains(expert, topicTokens),
     }))
     .filter((r) => r.relevanceScore > 0)
-    .sort((a, b) => b.relevanceScore - a.relevanceScore || a.expert.name.localeCompare(b.expert.name))
+    .sort(
+      (a, b) => b.relevanceScore - a.relevanceScore || a.expert.name.localeCompare(b.expert.name),
+    )
     .slice(0, topK);
 
   return scored;

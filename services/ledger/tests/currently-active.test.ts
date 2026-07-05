@@ -23,7 +23,10 @@ describe('getCurrentlyActive', () => {
   it('aggregates pending/in-progress actions and unresolved conflicts', async () => {
     const pendingAction = await createAction(TENANT_CONTEXT, postgres, { assignedTo: 'founder' });
     const cancelledAction = await createAction(TENANT_CONTEXT, postgres, { assignedTo: 'agent' });
-    await transitionActionState(TENANT_CONTEXT, postgres, { actionId: cancelledAction.id, state: 'cancelled' });
+    await transitionActionState(TENANT_CONTEXT, postgres, {
+      actionId: cancelledAction.id,
+      state: 'cancelled',
+    });
 
     await createDecision(TENANT_CONTEXT, postgres, {
       decisionType: 'pricing',

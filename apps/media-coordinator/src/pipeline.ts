@@ -54,14 +54,11 @@ export function createPipelineSession(
     processingUtterance = true;
 
     try {
-      const response = await fetch(
-        `${opts.apiServerUrl}/v1/agent-runtime/contributions/roster`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...opts.authHeaders },
-          body: JSON.stringify({ message: text, sessionId: opts.sessionId }),
-        },
-      );
+      const response = await fetch(`${opts.apiServerUrl}/v1/agent-runtime/contributions/roster`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...opts.authHeaders },
+        body: JSON.stringify({ message: text, sessionId: opts.sessionId }),
+      });
 
       if (!response.ok) {
         throw new Error(`agent-runtime returned ${response.status}`);

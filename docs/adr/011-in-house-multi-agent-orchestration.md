@@ -14,7 +14,7 @@ Specification §2.2–§2.3:
    a meeting (e.g. CFO, CMO, CRO) independently watch the conversation and
    decide, on their own, when something is worth interjecting. When
    relevant, an agent does its analysis work — sub-agent dispatch, brain
-   retrieval — *before* signalling a hand-raise, so the signal-to-floor
+   retrieval — _before_ signalling a hand-raise, so the signal-to-floor
    latency stays low (§13.2: P95 hand-raise to first agent audio < 1.5s).
    Multiple agents can independently decide to raise a hand on the same
    turn.
@@ -47,10 +47,11 @@ A graph-based orchestration framework with built-in checkpointing,
 human-in-the-loop interrupts, and multi-agent subgraph composition.
 
 Trade-offs:
+
 - Its natural usage pattern is a supervisor node routing through a graph
   of agent nodes — sequential or branching, one traversal at a time. The
   actual requirement here is N independent agents racing to evaluate the
-  *same* turn in parallel, which doesn't map onto graph traversal without
+  _same_ turn in parallel, which doesn't map onto graph traversal without
   either looping through agents synchronously inside one node (kills the
   parallelism, adds latency exactly where the 1.5s budget can't afford
   it) or spinning up N separate graph invocations per agent — at which
@@ -92,6 +93,7 @@ This is embarrassingly parallel and needs no central coordinator.
 **Stage 2 — Collision-gated LLM arbiter.** A short debounce window (a few
 hundred ms to a couple of seconds) collects `hand.candidate` events per
 session.
+
 - **If exactly one candidate lands in the window, skip the arbiter
   entirely** and pass it straight to Stage 3. No LLM call, no added
   latency — the single-hand-raise P95 target stays untouched on the

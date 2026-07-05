@@ -10,8 +10,26 @@ function makePostgres() {
     async adminQuery(_sql: string, _params?: unknown[]) {
       if (_sql.includes('COUNT')) return [{ count: '2' }];
       return [
-        { tenant_id: 't1', name: 'Alpha', email: 'a@x.com', plan: 'starter', status: 'active', created_at: new Date(), total_cost_micro_this_month: 0, total_roster_calls_this_month: 0 },
-        { tenant_id: 't2', name: 'Beta', email: 'b@x.com', plan: 'growth', status: 'active', created_at: new Date(), total_cost_micro_this_month: 5000, total_roster_calls_this_month: 10 },
+        {
+          tenant_id: 't1',
+          name: 'Alpha',
+          email: 'a@x.com',
+          plan: 'starter',
+          status: 'active',
+          created_at: new Date(),
+          total_cost_micro_this_month: 0,
+          total_roster_calls_this_month: 0,
+        },
+        {
+          tenant_id: 't2',
+          name: 'Beta',
+          email: 'b@x.com',
+          plan: 'growth',
+          status: 'active',
+          created_at: new Date(),
+          total_cost_micro_this_month: 5000,
+          total_roster_calls_this_month: 10,
+        },
       ];
     },
     withTenant: async () => null,

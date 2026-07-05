@@ -3,7 +3,10 @@ import { getAvailableSlots } from '../src/booking.js';
 import type { TenantContext } from '@voai/auth-context';
 
 const TC: TenantContext = {
-  tenantId: 'tenant-1', userId: 'user-1', userType: 'founder', sessionId: 'sess-1',
+  tenantId: 'tenant-1',
+  userId: 'user-1',
+  userType: 'founder',
+  sessionId: 'sess-1',
 };
 
 function makeClient(availabilityRows: Array<{ start_utc_min: number; end_utc_min: number }>) {
@@ -49,8 +52,9 @@ describe('getAvailableSlots', () => {
 
   it('throws ValidationError for invalid date format', async () => {
     const client = makeClient([]);
-    await expect(getAvailableSlots(TC, client as never, 'exp-1', 'not-a-date'))
-      .rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(
+      getAvailableSlots(TC, client as never, 'exp-1', 'not-a-date'),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('slots span the correct UTC date', async () => {

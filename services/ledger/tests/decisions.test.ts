@@ -54,15 +54,15 @@ describe('decisions lifecycle', () => {
     });
     await abandonDecision(TENANT_CONTEXT, postgres, decision.id, 'no longer relevant');
 
-    await expect(confirmDecision(TENANT_CONTEXT, postgres, decision.id, 'user-1')).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+    await expect(
+      confirmDecision(TENANT_CONTEXT, postgres, decision.id, 'user-1'),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('throws NotFoundError when confirming an unknown decision', async () => {
-    await expect(confirmDecision(TENANT_CONTEXT, postgres, 'no-such-id', 'user-1')).rejects.toBeInstanceOf(
-      NotFoundError,
-    );
+    await expect(
+      confirmDecision(TENANT_CONTEXT, postgres, 'no-such-id', 'user-1'),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('recordDecisionOutcome stores free-text outcome and timestamp', async () => {

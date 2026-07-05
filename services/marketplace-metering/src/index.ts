@@ -14,7 +14,12 @@ import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types'
 import type { PostgresClient } from '@voai/db';
 import { buildMeteringRouter } from './routes.js';
 
-export type { MeteringEvent, RecordMeteringEventInput, MeteringEventType, UsageSummary } from './metering.js';
+export type {
+  MeteringEvent,
+  RecordMeteringEventInput,
+  MeteringEventType,
+  UsageSummary,
+} from './metering.js';
 export { recordMeteringEvent, getTenantUsageSummary, estimateCostMicro } from './metering.js';
 
 export type { BillingClient, SubscriptionTier } from './stripe.js';

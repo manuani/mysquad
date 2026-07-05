@@ -135,9 +135,10 @@ export class DevAuthProvider implements AuthProvider {
     if (!indexRow) return;
 
     await this.postgres.withTenant(indexRow.tenant_id, async (client) => {
-      await client.query('update auth_sessions set revoked_at = now() where token_hash = $1 and revoked_at is null', [
-        tokenHash,
-      ]);
+      await client.query(
+        'update auth_sessions set revoked_at = now() where token_hash = $1 and revoked_at is null',
+        [tokenHash],
+      );
     });
   }
 

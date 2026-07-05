@@ -38,7 +38,7 @@ files.
   with no key configured (mirrors how `identity-and-tenancy` documented its
   missing-WorkOS-credentials gap rather than failing at boot).
 - **`RoutingService`** (`src/routing-service.ts`) — takes `tenantContext:
-  TenantContext` first (ADR 007), logs the routing decision and the
+TenantContext` first (ADR 007), logs the routing decision and the
   completion outcome (success or failure) via the module's `Logger`, then
   dispatches to the single configured provider. No `routing_decisions`
   table exists yet — persisting routing decisions has billing implications
@@ -53,7 +53,7 @@ files.
   (non-empty array of `{ role: 'user'|'assistant', content: string }`),
   with optional `maxTokens`.
 - **Typed cross-module export** — `routeCompletion(tenantContext,
-  routingService, request)` in `src/index.ts`, alongside the
+routingService, request)` in `src/index.ts`, alongside the
   `ModuleDefinition`, following the pattern in
   `services/identity-and-tenancy/src/index.ts`. If `agent-runtime` (built
   concurrently) ends up calling this module in-process rather than over

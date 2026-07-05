@@ -14,6 +14,7 @@ starts: Terraform, the staging environment, and the deploy pipeline all
 depend on which cloud is chosen.
 
 Constraints supplied by the founder:
+
 - Open to an Indian provider, AWS, or Azure.
 - Optimize for the combination of running cost and maintenance cost, not
   running cost alone — the team is very small (per Strategic Vision
@@ -81,13 +82,13 @@ Terraform decision, not a blocker now).
 Service mapping for the platform's five data stores (System Architecture
 §4.1) plus compute:
 
-| Concern | AWS service | Notes |
-| --- | --- | --- |
-| API server pool compute | ECS on Fargate + ALB | App Runner was the original choice but is closed to new AWS customers as of 2026-04-30 (see Amendment below) |
-| Postgres + pgvector | RDS for PostgreSQL | pgvector supported on RDS Postgres 15+ |
-| Redis | ElastiCache for Redis | |
-| Object store | S3 | Zero-friction match to existing `@aws-sdk/client-s3` code and MinIO-based local dev parity (ADR 010) |
-| Graph (Neo4j) | Neo4j AuraDB | Cloud-agnostic managed SaaS, independent of this cloud-provider decision — already named in System Architecture §4.1 |
+| Concern                 | AWS service           | Notes                                                                                                                |
+| ----------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| API server pool compute | ECS on Fargate + ALB  | App Runner was the original choice but is closed to new AWS customers as of 2026-04-30 (see Amendment below)         |
+| Postgres + pgvector     | RDS for PostgreSQL    | pgvector supported on RDS Postgres 15+                                                                               |
+| Redis                   | ElastiCache for Redis |                                                                                                                      |
+| Object store            | S3                    | Zero-friction match to existing `@aws-sdk/client-s3` code and MinIO-based local dev parity (ADR 010)                 |
+| Graph (Neo4j)           | Neo4j AuraDB          | Cloud-agnostic managed SaaS, independent of this cloud-provider decision — already named in System Architecture §4.1 |
 
 ## Rationale
 

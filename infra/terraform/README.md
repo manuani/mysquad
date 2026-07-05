@@ -6,15 +6,15 @@ anywhere. Nothing here has been run against a real AWS account.
 
 ## What this provisions
 
-| Resource | File | Purpose |
-| --- | --- | --- |
-| VPC, subnets, NAT, security groups | `networking.tf` | Network boundary for everything below |
-| RDS Postgres 16 | `rds.tf` | Structured + vector store (pgvector) |
-| ElastiCache Redis | `redis.tf` | Hot cache |
-| S3 bucket (+ lifecycle, encryption) | `s3.tf` | Object store; also a separate bucket for Terraform remote state |
-| ECR repository | `ecr.tf` | Container image CI pushes to |
-| Secrets Manager | `secrets.tf` | Every credential the app needs at runtime |
-| App Runner service + VPC connector | `apprunner.tf` | The API server pool (§3.7) |
+| Resource                            | File            | Purpose                                                         |
+| ----------------------------------- | --------------- | --------------------------------------------------------------- |
+| VPC, subnets, NAT, security groups  | `networking.tf` | Network boundary for everything below                           |
+| RDS Postgres 16                     | `rds.tf`        | Structured + vector store (pgvector)                            |
+| ElastiCache Redis                   | `redis.tf`      | Hot cache                                                       |
+| S3 bucket (+ lifecycle, encryption) | `s3.tf`         | Object store; also a separate bucket for Terraform remote state |
+| ECR repository                      | `ecr.tf`        | Container image CI pushes to                                    |
+| Secrets Manager                     | `secrets.tf`    | Every credential the app needs at runtime                       |
+| App Runner service + VPC connector  | `apprunner.tf`  | The API server pool (§3.7)                                      |
 
 Not provisioned here: **Neo4j** (AuraDB is its own managed SaaS,
 independent of this cloud choice per ADR 012 — provision separately at
@@ -84,7 +84,7 @@ first time:
    docker push <ecr_repository_url>:latest
    ```
 6. **Create the application-level Postgres role.** Terraform provisions
-   the RDS *instance*; it does not run SQL inside the database. Per ADR
+   the RDS _instance_; it does not run SQL inside the database. Per ADR
    010's two-role pattern, connect with the master credentials once and
    run the equivalent of `infra/docker/init/postgres/002_app_role.sql`
    against this RDS instance (adjusted for the actual database name and

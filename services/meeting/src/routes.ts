@@ -39,12 +39,16 @@ function tenantContextFromHeaders(req: Request) {
 
 function handleError(err: unknown, res: Response, log: Logger): void {
   if (isPlatformError(err)) {
-    res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
+    res
+      .status(err.httpStatus)
+      .json({ error: err.code, message: err.message, details: err.details });
     return;
   }
   // No silent catches: anything that isn't a known PlatformError is
   // unexpected and must be logged before returning the generic 500.
-  log.error('unexpected error handling request', { error: err instanceof Error ? err.stack : String(err) });
+  log.error('unexpected error handling request', {
+    error: err instanceof Error ? err.stack : String(err),
+  });
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
 }
 
@@ -96,7 +100,8 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
       if (!isOneOf(SPEAKER_TYPES, body.speakerType)) {
         throw new ValidationError(`speakerType must be one of ${SPEAKER_TYPES.join(', ')}`);
       }
-      if (typeof body.speakerName !== 'string') throw new ValidationError('speakerName is required');
+      if (typeof body.speakerName !== 'string')
+        throw new ValidationError('speakerName is required');
       if (typeof body.content !== 'string') throw new ValidationError('content is required');
 
       const entry = await appendTranscriptEntry(tenantContext, postgres, {
@@ -155,9 +160,9 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
 
     // Accept auth from query params (EventSource) or headers (API clients)
     const q = req.query as Record<string, string>;
-    const tenantId  = q['x-tenant-id']  ?? req.header('x-tenant-id')  ?? '';
-    const userId    = q['x-user-id']    ?? req.header('x-user-id')    ?? '';
-    const userType  = q['x-user-type']  ?? req.header('x-user-type')  ?? 'founder';
+    const tenantId = q['x-tenant-id'] ?? req.header('x-tenant-id') ?? '';
+    const userId = q['x-user-id'] ?? req.header('x-user-id') ?? '';
+    const userType = q['x-user-type'] ?? req.header('x-user-type') ?? 'founder';
     const sessionTk = q['x-session-id'] ?? req.header('x-session-id') ?? '';
 
     if (!tenantId || !userId || !sessionTk) {
@@ -174,7 +179,11 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
     res.write(': connected\n\n');
 
     sse.add(sessionId, res);
-    log.info('SSE client connected', { sessionId, tenantId, count: sse.connectionCount(sessionId) });
+    log.info('SSE client connected', {
+      sessionId,
+      tenantId,
+      count: sse.connectionCount(sessionId),
+    });
 
     req.on('close', () => {
       sse.remove(sessionId, res);
@@ -252,8 +261,10 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
       const tenantContext = tenantContextFromHeaders(req);
       const sessionId = requireParam(req, 'id');
       const body = req.body as Record<string, unknown>;
-      if (typeof body.expertId !== 'string' || !body.expertId.trim()) throw new ValidationError('expertId required');
-      if (typeof body.expertName !== 'string' || !body.expertName.trim()) throw new ValidationError('expertName required');
+      if (typeof body.expertId !== 'string' || !body.expertId.trim())
+        throw new ValidationError('expertId required');
+      if (typeof body.expertName !== 'string' || !body.expertName.trim())
+        throw new ValidationError('expertName required');
 
       const livekitApiKey = process.env['LIVEKIT_API_KEY'];
       const livekitApiSecret = process.env['LIVEKIT_API_SECRET'];

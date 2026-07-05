@@ -38,7 +38,11 @@ describe('ledger routes', () => {
     const res = await fetch(`${baseUrl}/decisions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...TENANT_HEADERS },
-      body: JSON.stringify({ decisionType: 'pricing', summary: 'Raise prices', stakesLevel: 'high' }),
+      body: JSON.stringify({
+        decisionType: 'pricing',
+        summary: 'Raise prices',
+        stakesLevel: 'high',
+      }),
     });
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -49,7 +53,11 @@ describe('ledger routes', () => {
     const res = await fetch(`${baseUrl}/decisions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ decisionType: 'pricing', summary: 'Raise prices', stakesLevel: 'high' }),
+      body: JSON.stringify({
+        decisionType: 'pricing',
+        summary: 'Raise prices',
+        stakesLevel: 'high',
+      }),
     });
     expect(res.status).toBe(500);
   });
@@ -58,7 +66,11 @@ describe('ledger routes', () => {
     const res = await fetch(`${baseUrl}/decisions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...TENANT_HEADERS },
-      body: JSON.stringify({ decisionType: 'pricing', summary: 'Raise prices', stakesLevel: 'extreme' }),
+      body: JSON.stringify({
+        decisionType: 'pricing',
+        summary: 'Raise prices',
+        stakesLevel: 'extreme',
+      }),
     });
     expect(res.status).toBe(400);
   });
@@ -67,14 +79,24 @@ describe('ledger routes', () => {
     const createRes = await fetch(`${baseUrl}/decisions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...TENANT_HEADERS },
-      body: JSON.stringify({ decisionType: 'pricing', summary: 'Old plan', stakesLevel: 'medium', state: 'active' }),
+      body: JSON.stringify({
+        decisionType: 'pricing',
+        summary: 'Old plan',
+        stakesLevel: 'medium',
+        state: 'active',
+      }),
     });
     const prior = await createRes.json();
 
     const createNextRes = await fetch(`${baseUrl}/decisions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...TENANT_HEADERS },
-      body: JSON.stringify({ decisionType: 'pricing', summary: 'New plan', stakesLevel: 'medium', state: 'active' }),
+      body: JSON.stringify({
+        decisionType: 'pricing',
+        summary: 'New plan',
+        stakesLevel: 'medium',
+        state: 'active',
+      }),
     });
     const next = await createNextRes.json();
 

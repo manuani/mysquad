@@ -28,7 +28,7 @@ the typed service from `@voai/ledger` — never reach into internal files.
   state enum.
 - CRUD + state-transition operations for all three entities, going through
   `db.postgres.withTenant` (never a raw query) and taking `tenantContext:
-  TenantContext` as the first parameter on every tenant-scoped function
+TenantContext` as the first parameter on every tenant-scoped function
   (ADR 007). Application code enforces valid state-machine transitions
   (e.g. a Completed action cannot return to Pending) on top of the DB
   CHECK constraints.
@@ -41,9 +41,9 @@ the typed service from `@voai/ledger` — never reach into internal files.
   over existing tables, not a separate table, per the Platform
   Specification.
 - HTTP routes: `POST /decisions`, `PATCH /decisions/:id/supersede`, `PATCH
-  /decisions/:id/outcome`, `POST /actions`, `PATCH /actions/:id/state`,
+/decisions/:id/outcome`, `POST /actions`, `PATCH /actions/:id/state`,
   `POST /conflicts`, `POST /conflicts/:id/resolve`, `GET
-  /currently-active`.
+/currently-active`.
 
 **Deferred** (out of scope for this deliverable):
 

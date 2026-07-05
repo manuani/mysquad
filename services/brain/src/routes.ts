@@ -30,7 +30,9 @@ import {
 
 function handleError(err: unknown, res: Response): void {
   if (isPlatformError(err)) {
-    res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
+    res
+      .status(err.httpStatus)
+      .json({ error: err.code, message: err.message, details: err.details });
     return;
   }
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
@@ -65,7 +67,9 @@ function parseDomainParam(req: Request): BrainDomain {
 
 function parseSource(value: unknown): BrainSource {
   if (!isBrainSource(value)) {
-    throw new ValidationError('source must be one of founder_edit, agent_extraction, integration_import');
+    throw new ValidationError(
+      'source must be one of founder_edit, agent_extraction, integration_import',
+    );
   }
   return value;
 }
@@ -96,7 +100,12 @@ export function buildBrainRouter(postgres: PostgresClient): Router {
     try {
       const tenantContext = tenantContextFromRequest(req);
       const domain = parseDomainParam(req);
-      const body = req.body as { language?: unknown; content?: unknown; contentEn?: unknown; source?: unknown };
+      const body = req.body as {
+        language?: unknown;
+        content?: unknown;
+        contentEn?: unknown;
+        source?: unknown;
+      };
       if (typeof body.language !== 'string') {
         throw new ValidationError('language is required');
       }
@@ -165,7 +174,12 @@ export function buildBrainRouter(postgres: PostgresClient): Router {
       const source = parseSource(body.source);
       const item = await updateBrainContentItem(tenantContext, postgres, id, {
         content: typeof body.content === 'string' ? body.content : undefined,
-        contentEn: body.contentEn === null ? null : typeof body.contentEn === 'string' ? body.contentEn : undefined,
+        contentEn:
+          body.contentEn === null
+            ? null
+            : typeof body.contentEn === 'string'
+              ? body.contentEn
+              : undefined,
         source,
       });
       res.status(200).json(item);

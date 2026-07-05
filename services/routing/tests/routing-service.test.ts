@@ -63,7 +63,10 @@ describe('RoutingService', () => {
       userId: tenantContext.userId,
       provider: 'fake',
     });
-    expect(logger.info).toHaveBeenCalledWith('routing decision', expect.objectContaining({ provider: 'fake' }));
+    expect(logger.info).toHaveBeenCalledWith(
+      'routing decision',
+      expect.objectContaining({ provider: 'fake' }),
+    );
     expect(logger.info).toHaveBeenCalledWith(
       'routing completion succeeded',
       expect.objectContaining({ provider: 'fake', model: 'fake-model' }),
@@ -99,16 +102,21 @@ describe('RoutingService', () => {
     // onUsage is called async; wait a microtask
     await Promise.resolve();
 
-    expect(onUsage).toHaveBeenCalledWith(expect.objectContaining({
-      model: 'claude-sonnet-4-6',
-      inputTokens: 100,
-      outputTokens: 50,
-      sessionId: 'session-1',
-    }));
+    expect(onUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-sonnet-4-6',
+        inputTokens: 100,
+        outputTokens: 50,
+        sessionId: 'session-1',
+      }),
+    );
   });
 
   it('does NOT call onUsage when provider fails', async () => {
-    const provider: LlmProvider = { id: 'fake', complete: vi.fn().mockRejectedValue(new Error('fail')) };
+    const provider: LlmProvider = {
+      id: 'fake',
+      complete: vi.fn().mockRejectedValue(new Error('fail')),
+    };
     const onUsage = vi.fn();
     const service = new RoutingService(provider, createFakeLogger(), onUsage);
 

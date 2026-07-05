@@ -32,9 +32,9 @@ describe('Arbiter', () => {
     it('ranks higher-relevance personas first when no one has spoken (equal silence)', () => {
       const arbiter = new Arbiter();
       const result = arbiter.rank([MARCUS, SARAH, PRIYA], 3); // intentionally jumbled input order
-      expect(result[0]!.persona.id).toBe('sarah-cfo');   // 0.9 relevance
-      expect(result[1]!.persona.id).toBe('priya-cmo');   // 0.75 relevance
-      expect(result[2]!.persona.id).toBe('marcus-da');   // 0.6 relevance
+      expect(result[0]!.persona.id).toBe('sarah-cfo'); // 0.9 relevance
+      expect(result[1]!.persona.id).toBe('priya-cmo'); // 0.75 relevance
+      expect(result[2]!.persona.id).toBe('marcus-da'); // 0.6 relevance
     });
 
     it('includes compositeScore and silenceScore in each result', () => {
@@ -85,8 +85,14 @@ describe('Arbiter', () => {
     it('is stable on ties — sorts by id as tiebreaker', () => {
       const arbiter = new Arbiter();
       // Give both equal relevance and both have never spoken
-      const a: GatedPersona = { persona: { id: 'aaa', name: 'A', role: 'role' }, relevanceScore: 0.8 };
-      const b: GatedPersona = { persona: { id: 'bbb', name: 'B', role: 'role' }, relevanceScore: 0.8 };
+      const a: GatedPersona = {
+        persona: { id: 'aaa', name: 'A', role: 'role' },
+        relevanceScore: 0.8,
+      };
+      const b: GatedPersona = {
+        persona: { id: 'bbb', name: 'B', role: 'role' },
+        relevanceScore: 0.8,
+      };
       const result = arbiter.rank([b, a], 2);
       expect(result[0]!.persona.id).toBe('aaa'); // 'aaa' < 'bbb' lexicographically
     });

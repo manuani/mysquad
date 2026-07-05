@@ -30,8 +30,15 @@ export interface CronExpression {
 
 export function parseCron(expression: string): CronExpression {
   const parts = expression.trim().split(/\s+/);
-  if (parts.length !== 5) throw new Error(`invalid cron expression: "${expression}" (need 5 fields)`);
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts as [string, string, string, string, string];
+  if (parts.length !== 5)
+    throw new Error(`invalid cron expression: "${expression}" (need 5 fields)`);
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
   return { minute, hour, dayOfMonth, month, dayOfWeek };
 }
 
@@ -80,7 +87,10 @@ export class CronRunner {
   }
 
   stop(): void {
-    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
   }
 
   /** Run a named job immediately (for testing or manual trigger). */

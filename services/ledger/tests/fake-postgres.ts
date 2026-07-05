@@ -102,7 +102,11 @@ export function createFakePostgres() {
       }
 
       if (sql.startsWith('select * from decisions order by created_at')) {
-        return { rows: [...decisions].sort((a, b) => b.created_at.localeCompare(a.created_at)) as unknown as T[] };
+        return {
+          rows: [...decisions].sort((a, b) =>
+            b.created_at.localeCompare(a.created_at),
+          ) as unknown as T[],
+        };
       }
 
       if (sql.startsWith("update decisions set state = 'active'")) {
@@ -156,8 +160,14 @@ export function createFakePostgres() {
         return { rows: (row ? [row] : []) as T[] };
       }
 
-      if (sql.includes("from decisions") && sql.includes("state = 'active'") && sql.includes('outcome is null')) {
-        const rows = decisions.filter((d) => d.state === 'active' && d.outcome === null && d.confirmed_at !== null);
+      if (
+        sql.includes('from decisions') &&
+        sql.includes("state = 'active'") &&
+        sql.includes('outcome is null')
+      ) {
+        const rows = decisions.filter(
+          (d) => d.state === 'active' && d.outcome === null && d.confirmed_at !== null,
+        );
         return { rows: rows as unknown as T[] };
       }
 
@@ -189,7 +199,11 @@ export function createFakePostgres() {
       }
 
       if (sql.startsWith('select * from actions order by created_at')) {
-        return { rows: [...actions].sort((a, b) => b.created_at.localeCompare(a.created_at)) as unknown as T[] };
+        return {
+          rows: [...actions].sort((a, b) =>
+            b.created_at.localeCompare(a.created_at),
+          ) as unknown as T[],
+        };
       }
 
       if (sql.startsWith('update actions set')) {
@@ -206,7 +220,7 @@ export function createFakePostgres() {
         return { rows: (row ? [row] : []) as T[] };
       }
 
-      if (sql.includes("from actions where state in")) {
+      if (sql.includes('from actions where state in')) {
         const rows = actions.filter((a) => a.state === 'pending' || a.state === 'in_progress');
         return { rows: rows as unknown as T[] };
       }
@@ -238,7 +252,7 @@ export function createFakePostgres() {
         return { rows: (row ? [row] : []) as T[] };
       }
 
-      if (sql.startsWith("select * from conflicts where resolution_state")) {
+      if (sql.startsWith('select * from conflicts where resolution_state')) {
         const rows = conflicts.filter((c) => c.resolution_state !== 'resolved');
         return { rows: rows as unknown as T[] };
       }

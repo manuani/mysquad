@@ -27,8 +27,12 @@ describe('session lifecycle', () => {
   });
 
   it('rejects voice/mixed mode (deferred — no real-time infra)', async () => {
-    await expect(startSession(TENANT_CONTEXT, postgres, { mode: 'voice' })).rejects.toBeInstanceOf(ValidationError);
-    await expect(startSession(TENANT_CONTEXT, postgres, { mode: 'mixed' })).rejects.toBeInstanceOf(ValidationError);
+    await expect(startSession(TENANT_CONTEXT, postgres, { mode: 'voice' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    await expect(startSession(TENANT_CONTEXT, postgres, { mode: 'mixed' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
   });
 
   it('activateSession transitions started -> active', async () => {
@@ -54,11 +58,15 @@ describe('session lifecycle', () => {
   it('rejects ending an already-ended session', async () => {
     const session = await startSession(TENANT_CONTEXT, postgres);
     await endSession(TENANT_CONTEXT, postgres, session.id);
-    await expect(endSession(TENANT_CONTEXT, postgres, session.id)).rejects.toBeInstanceOf(ValidationError);
+    await expect(endSession(TENANT_CONTEXT, postgres, session.id)).rejects.toBeInstanceOf(
+      ValidationError,
+    );
   });
 
   it('endSession on an unknown session raises NotFoundError', async () => {
-    await expect(endSession(TENANT_CONTEXT, postgres, 'does-not-exist')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(endSession(TENANT_CONTEXT, postgres, 'does-not-exist')).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 
   it('getSession returns null for unknown session', async () => {

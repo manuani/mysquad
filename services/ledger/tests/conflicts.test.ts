@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { TenantContext } from '@voai/auth-context';
 import { NotFoundError, ValidationError } from '@voai/errors';
-import { acknowledgeConflict, createConflict, listUnresolvedConflicts, resolveConflict } from '../src/conflicts.js';
+import {
+  acknowledgeConflict,
+  createConflict,
+  listUnresolvedConflicts,
+  resolveConflict,
+} from '../src/conflicts.js';
 import { createFakePostgres } from './fake-postgres.js';
 
 const TENANT_CONTEXT: TenantContext = {
@@ -87,7 +92,9 @@ describe('conflicts lifecycle', () => {
   });
 
   it('throws NotFoundError for an unknown conflict id', async () => {
-    await expect(acknowledgeConflict(TENANT_CONTEXT, postgres, 'no-such-id')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      acknowledgeConflict(TENANT_CONTEXT, postgres, 'no-such-id'),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('listUnresolvedConflicts excludes resolved conflicts', async () => {
@@ -107,7 +114,11 @@ describe('conflicts lifecycle', () => {
       sourceBId: 'action-b',
       severity: 'high',
     });
-    await resolveConflict(TENANT_CONTEXT, postgres, { conflictId: b.id, resolvedBy: 'user-1', resolutionNote: 'fixed' });
+    await resolveConflict(TENANT_CONTEXT, postgres, {
+      conflictId: b.id,
+      resolvedBy: 'user-1',
+      resolutionNote: 'fixed',
+    });
 
     const unresolved = await listUnresolvedConflicts(TENANT_CONTEXT, postgres);
     expect(unresolved.map((row) => row.id)).toEqual([a.id]);

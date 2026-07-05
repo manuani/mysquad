@@ -214,8 +214,7 @@ describe('weekly aggregation grouping', () => {
     const summaries = [];
     for (const [personaId, { signalAvgs, signalCounts }] of byPersona) {
       const avgs = Object.values(signalAvgs) as number[];
-      const overallScore =
-        avgs.length > 0 ? avgs.reduce((sum, v) => sum + v, 0) / avgs.length : 0;
+      const overallScore = avgs.length > 0 ? avgs.reduce((sum, v) => sum + v, 0) / avgs.length : 0;
       summaries.push({ personaId, overallScore, signalCounts });
     }
     return summaries.sort((a, b) => b.overallScore - a.overallScore);

@@ -59,8 +59,10 @@ export function buildAdminRouter(postgres: PostgresClient, log: Logger, adminKey
   router.post('/tenants', async (req: Request, res: Response) => {
     try {
       const body = req.body as Record<string, unknown>;
-      if (typeof body.name !== 'string' || !body.name.trim()) throw new ValidationError('name required');
-      if (typeof body.email !== 'string' || !body.email.trim()) throw new ValidationError('email required');
+      if (typeof body.name !== 'string' || !body.name.trim())
+        throw new ValidationError('name required');
+      if (typeof body.email !== 'string' || !body.email.trim())
+        throw new ValidationError('email required');
       const result = await provisionTenant(postgres, {
         name: body.name as string,
         email: body.email as string,
@@ -77,7 +79,9 @@ export function buildAdminRouter(postgres: PostgresClient, log: Logger, adminKey
     try {
       const id = req.params['id']!;
       const q = req.query as Record<string, string>;
-      const from = q['from'] ? new Date(q['from']) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const from = q['from']
+        ? new Date(q['from'])
+        : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       const to = q['to'] ? new Date(q['to']) : new Date();
 
       const rows = await postgres.adminQuery<Record<string, unknown>>(

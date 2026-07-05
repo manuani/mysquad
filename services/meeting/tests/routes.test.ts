@@ -73,7 +73,11 @@ describe('meeting routes', () => {
     const append2 = await fetch(`${baseUrl}/sessions/${session.id}/transcript`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...TENANT_HEADERS },
-      body: JSON.stringify({ speakerType: 'agent', speakerName: 'CFO Agent', content: 'Here is the summary' }),
+      body: JSON.stringify({
+        speakerType: 'agent',
+        speakerName: 'CFO Agent',
+        content: 'Here is the summary',
+      }),
     });
     expect(append2.status).toBe(201);
 
@@ -157,29 +161,52 @@ describe('expert-join-token endpoint', () => {
     const { postgres } = createFakePostgres();
     const app = express();
     app.use(express.json());
-    app.use(buildMeetingRouter(postgres, {
-      debug: () => {}, info: () => {}, warn: () => {}, error: () => {},
-      child: function() { return this as Logger; },
-    } as Logger));
+    app.use(
+      buildMeetingRouter(postgres, {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        child: function () {
+          return this as Logger;
+        },
+      } as Logger),
+    );
 
-    await new Promise<void>((resolve) => { server = app.listen(0, () => resolve()); });
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, () => resolve());
+    });
     const { port } = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${port}`;
   });
 
-  afterEach(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
+  afterEach(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
 
   it('returns 422 VOICE_NOT_CONFIGURED when LIVEKIT env vars absent', async () => {
     const start = await fetch(`${baseUrl}/sessions`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'ten-1',
+        'x-user-id': 'u-1',
+        'x-user-type': 'founder',
+        'x-session-id': 's-1',
+      },
       body: JSON.stringify({}),
     });
     const session = await start.json();
 
     const res = await fetch(`${baseUrl}/sessions/${session.id}/expert-join-token`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'ten-1',
+        'x-user-id': 'u-1',
+        'x-user-type': 'founder',
+        'x-session-id': 's-1',
+      },
       body: JSON.stringify({ expertId: 'exp-1', expertName: 'Alice' }),
     });
     expect(res.status).toBe(422);
@@ -190,14 +217,26 @@ describe('expert-join-token endpoint', () => {
   it('returns 400 VALIDATION_FAILED when expertId missing', async () => {
     const start = await fetch(`${baseUrl}/sessions`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'ten-1',
+        'x-user-id': 'u-1',
+        'x-user-type': 'founder',
+        'x-session-id': 's-1',
+      },
       body: JSON.stringify({}),
     });
     const session = await start.json();
 
     const res = await fetch(`${baseUrl}/sessions/${session.id}/expert-join-token`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-tenant-id': 'ten-1', 'x-user-id': 'u-1', 'x-user-type': 'founder', 'x-session-id': 's-1' },
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'ten-1',
+        'x-user-id': 'u-1',
+        'x-user-type': 'founder',
+        'x-session-id': 's-1',
+      },
       body: JSON.stringify({ expertName: 'Alice' }),
     });
     expect(res.status).toBe(400);

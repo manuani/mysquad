@@ -35,7 +35,7 @@ export interface RecordMeteringEventInput {
 
 /** Cost in USD × 10^-6 per token for known Claude models. */
 const MODEL_INPUT_COST: Record<string, number> = {
-  'claude-haiku-4-5-20251001': 1,    // $0.000001 / input token ≈ $1/1M
+  'claude-haiku-4-5-20251001': 1, // $0.000001 / input token ≈ $1/1M
   'claude-sonnet-4-6': 3,
   'claude-opus-4-8': 15,
 };

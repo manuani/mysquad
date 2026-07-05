@@ -21,7 +21,13 @@ import { RoutingService } from './routing-service.js';
 import { buildRoutingRouter } from './routes.js';
 import type { LlmCompletionRequest, LlmCompletionResult } from './provider.js';
 
-export type { LlmCompletionRequest, LlmCompletionResult, LlmMessage, LlmProvider, LlmUsage } from './provider.js';
+export type {
+  LlmCompletionRequest,
+  LlmCompletionResult,
+  LlmMessage,
+  LlmProvider,
+  LlmUsage,
+} from './provider.js';
 export { AnthropicProvider } from './anthropic-provider.js';
 export { RoutingService } from './routing-service.js';
 export type { RoutingUsageEvent, OnUsageCallback } from './routing-service.js';

@@ -19,7 +19,9 @@ function makePostgres(rows: Record<string, unknown>[], countStr = '1') {
       if (_sql.includes('COUNT')) return [{ count: countStr }] as unknown[];
       return rows as unknown[];
     },
-    async withTenant(_tid: string, _fn: unknown) { return null; },
+    async withTenant(_tid: string, _fn: unknown) {
+      return null;
+    },
   };
 }
 
@@ -53,9 +55,14 @@ describe('provisionTenant', () => {
       async adminQuery(_sql: string, _params: unknown[]) {
         return [{ id: 'new-tenant-id', email: 'newco@example.com', plan: 'starter' }] as unknown[];
       },
-      async withTenant(_tid: string, _fn: unknown) { return null; },
+      async withTenant(_tid: string, _fn: unknown) {
+        return null;
+      },
     };
-    const result = await provisionTenant(postgres as never, { name: 'NewCo', email: 'newco@example.com' });
+    const result = await provisionTenant(postgres as never, {
+      name: 'NewCo',
+      email: 'newco@example.com',
+    });
     expect(result.tenantId).toBe('new-tenant-id');
     expect(result.plan).toBe('starter');
   });

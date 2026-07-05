@@ -32,7 +32,11 @@ import type { AgentPersona } from './personas/sarah-cfo.js';
  * is Phase 4 scope — this is a fixed list for demonstrating the
  * multi-agent claim, not the real onboarding-driven roster logic.
  */
-const ROSTER: readonly AgentPersona[] = [SARAH_CFO_PERSONA, PRIYA_CMO_PERSONA, MARCUS_DEVILS_ADVOCATE_PERSONA];
+const ROSTER: readonly AgentPersona[] = [
+  SARAH_CFO_PERSONA,
+  PRIYA_CMO_PERSONA,
+  MARCUS_DEVILS_ADVOCATE_PERSONA,
+];
 
 /**
  * Builds a `TenantContext` from request headers, mirroring
@@ -51,7 +55,9 @@ function tenantContextFromRequest(req: Request): TenantContext {
 
 function handleError(err: unknown, res: Response, log: Logger): void {
   if (isPlatformError(err)) {
-    res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
+    res
+      .status(err.httpStatus)
+      .json({ error: err.code, message: err.message, details: err.details });
     return;
   }
   // A prior bug in this repo was a silent catch block with no log line,
@@ -78,12 +84,14 @@ export function buildAgentRuntimeRouter(
         throw new ValidationError('message is required');
       }
 
-      const brainContext = await fetchBrainContextForMessage(tenantContext, postgres, body.message).catch(
-        (err: unknown) => {
-          log.warn('brain context fetch failed, continuing without it', { err: String(err) });
-          return [];
-        },
-      );
+      const brainContext = await fetchBrainContextForMessage(
+        tenantContext,
+        postgres,
+        body.message,
+      ).catch((err: unknown) => {
+        log.warn('brain context fetch failed, continuing without it', { err: String(err) });
+        return [];
+      });
 
       const contribution = await runtime.generateContribution(tenantContext, SARAH_CFO_PERSONA, {
         message: body.message,
@@ -113,12 +121,14 @@ export function buildAgentRuntimeRouter(
       }
       const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
 
-      const brainContext = await fetchBrainContextForMessage(tenantContext, postgres, body.message).catch(
-        (err: unknown) => {
-          log.warn('brain context fetch failed, continuing without it', { err: String(err) });
-          return [];
-        },
-      );
+      const brainContext = await fetchBrainContextForMessage(
+        tenantContext,
+        postgres,
+        body.message,
+      ).catch((err: unknown) => {
+        log.warn('brain context fetch failed, continuing without it', { err: String(err) });
+        return [];
+      });
 
       const { ordered, skipped } = await runtime.generateOrderedContributions(
         tenantContext,
@@ -172,20 +182,26 @@ export function buildAgentRuntimeRouter(
     try {
       const tenantContext = tenantContextFromRequest(req);
       const body = req.body as { topic?: unknown; sessionId?: unknown };
-      if (typeof body.topic !== 'string' || !body.topic.trim()) throw new ValidationError('topic is required');
-      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : tenantContext.sessionId ?? 'unknown';
+      if (typeof body.topic !== 'string' || !body.topic.trim())
+        throw new ValidationError('topic is required');
+      const sessionId =
+        typeof body.sessionId === 'string'
+          ? body.sessionId
+          : (tenantContext.sessionId ?? 'unknown');
 
       const experts = await postgres.withTenant(tenantContext.tenantId, (client) =>
         matchExperts(tenantContext, client, body.topic as string, 3),
       );
 
-      events.publish({
-        type: 'escalation.triggered',
-        tenantId: tenantContext.tenantId,
-        sessionId,
-        topic: body.topic as string,
-        topExpertIds: experts.slice(0, 3).map((e) => e.expert.id),
-      } as never).catch(() => {});
+      events
+        .publish({
+          type: 'escalation.triggered',
+          tenantId: tenantContext.tenantId,
+          sessionId,
+          topic: body.topic as string,
+          topExpertIds: experts.slice(0, 3).map((e) => e.expert.id),
+        } as never)
+        .catch(() => {});
 
       res.status(200).json({ experts, sessionId });
     } catch (err) {

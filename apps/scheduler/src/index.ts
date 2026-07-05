@@ -27,7 +27,10 @@ const runner = new CronRunner();
 runner.register({
   name: 'morning-briefing',
   expression: parseCron('0 8 * * *'),
-  handler: createMorningBriefingJob({ apiServerUrl: API_SERVER_URL, schedulerSecret: SCHEDULER_SECRET }, log),
+  handler: createMorningBriefingJob(
+    { apiServerUrl: API_SERVER_URL, schedulerSecret: SCHEDULER_SECRET },
+    log,
+  ),
 });
 
 runner.start((job, err) => {
@@ -43,7 +46,10 @@ app.get('/healthz', (_req, res) => {
 });
 app.post('/run/:name', async (req, res) => {
   const secret = req.header('x-scheduler-secret');
-  if (secret !== SCHEDULER_SECRET) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (secret !== SCHEDULER_SECRET) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   try {
     await runner.runNow(req.params['name'] ?? '');
     res.json({ status: 'ok' });

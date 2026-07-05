@@ -16,7 +16,9 @@ const TENANT_CONTEXT: TenantContext = {
  * the pattern in services/identity-and-tenancy and services/ledger's own
  * fake-postgres test fixtures.
  */
-function makeFakePostgres(items: { domain: string; content: string; updatedAt: string }[]): PostgresClient {
+function makeFakePostgres(
+  items: { domain: string; content: string; updatedAt: string }[],
+): PostgresClient {
   const rows = items.map(toRow);
   const client: TenantScopedClient = {
     async query<T = unknown>(text: string, params: unknown[] = []) {
@@ -55,11 +57,19 @@ function toRow(item: { domain: string; content: string; updatedAt: string }, ind
 describe('fetchBrainContextForMessage', () => {
   it('returns search matches formatted with domain when the message keyword matches', async () => {
     const postgres = makeFakePostgres([
-      { domain: 'financial_state', content: 'Burn rate is $80k/month', updatedAt: '2026-01-01T00:00:00Z' },
+      {
+        domain: 'financial_state',
+        content: 'Burn rate is $80k/month',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
       { domain: 'company_profile', content: 'B2B SaaS company', updatedAt: '2026-01-02T00:00:00Z' },
     ]);
 
-    const result = await fetchBrainContextForMessage(TENANT_CONTEXT, postgres, 'What is our burn rate?');
+    const result = await fetchBrainContextForMessage(
+      TENANT_CONTEXT,
+      postgres,
+      'What is our burn rate?',
+    );
 
     expect(result).toEqual(['[financial_state] Burn rate is $80k/month']);
   });
@@ -70,7 +80,11 @@ describe('fetchBrainContextForMessage', () => {
       { domain: 'goals', content: 'Newer fact', updatedAt: '2026-01-05T00:00:00Z' },
     ]);
 
-    const result = await fetchBrainContextForMessage(TENANT_CONTEXT, postgres, 'unrelated query xyz');
+    const result = await fetchBrainContextForMessage(
+      TENANT_CONTEXT,
+      postgres,
+      'unrelated query xyz',
+    );
 
     expect(result).toEqual(['[goals] Newer fact', '[company_profile] Older fact']);
   });

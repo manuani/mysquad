@@ -19,7 +19,11 @@ import type { PostgresClient } from '@voai/db';
 import type { Logger } from '@voai/types';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import {
-  createExpert, getExpert, listExperts, updateExpert, addExpertDomainTag,
+  createExpert,
+  getExpert,
+  listExperts,
+  updateExpert,
+  addExpertDomainTag,
 } from './experts.js';
 import { matchExperts } from './matching.js';
 import { recordEscalation, updateEscalationStatus, getSessionEscalations } from './escalation.js';
@@ -58,8 +62,10 @@ export function buildMarketplaceRouter(
     try {
       const tc = tenantContextFromHeaders(req);
       const body = req.body as Record<string, unknown>;
-      if (typeof body.name !== 'string' || !body.name.trim()) throw new ValidationError('name required');
-      if (typeof body.email !== 'string' || !body.email.trim()) throw new ValidationError('email required');
+      if (typeof body.name !== 'string' || !body.name.trim())
+        throw new ValidationError('name required');
+      if (typeof body.email !== 'string' || !body.email.trim())
+        throw new ValidationError('email required');
 
       const expert = await postgres.withTenant(tc.tenantId, async (client) =>
         createExpert(tc, client, {
@@ -67,13 +73,19 @@ export function buildMarketplaceRouter(
           email: body.email as string,
           bio: typeof body.bio === 'string' ? body.bio : undefined,
           linkedinUrl: typeof body.linkedinUrl === 'string' ? body.linkedinUrl : undefined,
-          hourlyRateUsdCents: typeof body.hourlyRateUsdCents === 'number' ? body.hourlyRateUsdCents : undefined,
-          domains: Array.isArray(body.domains) ? body.domains as Array<{ domain: string; confidence?: number }> : undefined,
+          hourlyRateUsdCents:
+            typeof body.hourlyRateUsdCents === 'number' ? body.hourlyRateUsdCents : undefined,
+          domains: Array.isArray(body.domains)
+            ? (body.domains as Array<{ domain: string; confidence?: number }>)
+            : undefined,
         }),
       );
       // Index in Neo4j graph (non-blocking; degrades gracefully when Neo4j absent)
       indexExpertDomains(tc, graphClient, expert).catch((err: unknown) => {
-        log.warn('neo4j expert index failed (non-blocking)', { expertId: expert.id, err: String(err) });
+        log.warn('neo4j expert index failed (non-blocking)', {
+          expertId: expert.id,
+          err: String(err),
+        });
       });
       res.status(201).json(expert);
     } catch (err) {
@@ -102,8 +114,13 @@ export function buildMarketplaceRouter(
     try {
       const tc = tenantContextFromHeaders(req);
       const id = req.params['id']!;
-      const expert = await postgres.withTenant(tc.tenantId, async (client) => getExpert(tc, client, id));
-      if (!expert) { res.status(404).json({ error: 'NOT_FOUND', message: 'expert not found' }); return; }
+      const expert = await postgres.withTenant(tc.tenantId, async (client) =>
+        getExpert(tc, client, id),
+      );
+      if (!expert) {
+        res.status(404).json({ error: 'NOT_FOUND', message: 'expert not found' });
+        return;
+      }
       res.status(200).json(expert);
     } catch (err) {
       handleError(err, res, log);
@@ -120,8 +137,12 @@ export function buildMarketplaceRouter(
           name: typeof body.name === 'string' ? body.name : undefined,
           bio: typeof body.bio === 'string' ? body.bio : undefined,
           linkedinUrl: typeof body.linkedinUrl === 'string' ? body.linkedinUrl : undefined,
-          status: typeof body.status === 'string' ? body.status as 'active' | 'paused' | 'retired' : undefined,
-          hourlyRateUsdCents: typeof body.hourlyRateUsdCents === 'number' ? body.hourlyRateUsdCents : undefined,
+          status:
+            typeof body.status === 'string'
+              ? (body.status as 'active' | 'paused' | 'retired')
+              : undefined,
+          hourlyRateUsdCents:
+            typeof body.hourlyRateUsdCents === 'number' ? body.hourlyRateUsdCents : undefined,
         }),
       );
       res.status(200).json(expert);
@@ -135,19 +156,30 @@ export function buildMarketplaceRouter(
       const tc = tenantContextFromHeaders(req);
       const id = req.params['id']!;
       const body = req.body as Record<string, unknown>;
-      if (typeof body.domain !== 'string' || !body.domain.trim()) throw new ValidationError('domain required');
+      if (typeof body.domain !== 'string' || !body.domain.trim())
+        throw new ValidationError('domain required');
       const tag = await postgres.withTenant(tc.tenantId, async (client) =>
-        addExpertDomainTag(tc, client, id, body.domain as string, typeof body.confidence === 'number' ? body.confidence : undefined),
+        addExpertDomainTag(
+          tc,
+          client,
+          id,
+          body.domain as string,
+          typeof body.confidence === 'number' ? body.confidence : undefined,
+        ),
       );
       // Re-index full expert in Neo4j (non-blocking)
-      postgres.withTenant(tc.tenantId, (client) => getExpert(tc, client, id))
+      postgres
+        .withTenant(tc.tenantId, (client) => getExpert(tc, client, id))
         .then((expert) => {
           if (expert) {
             return indexExpertDomains(tc, graphClient, expert);
           }
         })
         .catch((err: unknown) => {
-          log.warn('neo4j re-index after tag add failed (non-blocking)', { expertId: id, err: String(err) });
+          log.warn('neo4j re-index after tag add failed (non-blocking)', {
+            expertId: id,
+            err: String(err),
+          });
         });
       res.status(201).json(tag);
     } catch (err) {
@@ -161,7 +193,8 @@ export function buildMarketplaceRouter(
     try {
       const tc = tenantContextFromHeaders(req);
       const body = req.body as Record<string, unknown>;
-      if (typeof body.topic !== 'string' || !body.topic.trim()) throw new ValidationError('topic required');
+      if (typeof body.topic !== 'string' || !body.topic.trim())
+        throw new ValidationError('topic required');
       const topK = typeof body.topK === 'number' ? body.topK : 5;
       const matches = await postgres.withTenant(tc.tenantId, async (client) =>
         matchExperts(tc, client, body.topic as string, topK),
@@ -205,7 +238,11 @@ export function buildMarketplaceRouter(
           topic: body.topic as string,
         }),
       );
-      log.info('expert session booked', { bookingId: booking.id, expertId: id, calcomLinked: !!booking.calcomBookingId });
+      log.info('expert session booked', {
+        bookingId: booking.id,
+        expertId: id,
+        calcomLinked: !!booking.calcomBookingId,
+      });
       res.status(201).json(booking);
     } catch (err) {
       handleError(err, res, log);
@@ -258,14 +295,16 @@ export function buildMarketplaceRouter(
       const body = req.body as Record<string, unknown>;
       if (typeof body.sessionId !== 'string') throw new ValidationError('sessionId required');
       if (typeof body.personaName !== 'string') throw new ValidationError('personaName required');
-      if (typeof body.topic !== 'string' || !body.topic.trim()) throw new ValidationError('topic required');
+      if (typeof body.topic !== 'string' || !body.topic.trim())
+        throw new ValidationError('topic required');
 
       const event = await postgres.withTenant(tc.tenantId, async (client) =>
         recordEscalation(tc, client, {
           sessionId: body.sessionId as string,
           personaName: body.personaName as string,
           topic: body.topic as string,
-          suggestedExpertId: typeof body.suggestedExpertId === 'string' ? body.suggestedExpertId : undefined,
+          suggestedExpertId:
+            typeof body.suggestedExpertId === 'string' ? body.suggestedExpertId : undefined,
         }),
       );
       log.info('escalation recorded', { id: event.id, personaName: event.personaName });
