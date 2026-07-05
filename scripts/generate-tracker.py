@@ -374,6 +374,184 @@ for r in [11, 12]:
         ws_sum.cell(row=r, column=c).alignment = Alignment(wrap_text=True, vertical="top")
     ws_sum.row_dimensions[r].height = 30
 
+# ─── Credentials sheet ─────────────────────────────────────────────────────────
+C_HAVE_BG  = "D6ECD9"   # green  — already set
+C_HAVE_TXT = "1E4D2B"
+C_NEED_BG  = "FFF3CD"   # amber  — need to get
+C_NEED_TXT = "5A3E00"
+C_OPT_BG   = "F0F0F0"   # grey   — optional / Phase 4
+C_OPT_TXT  = "555555"
+
+ws_cred = wb.create_sheet("Credentials & Secrets")
+ws_cred.column_dimensions["A"].width = 8    # status chip
+ws_cred.column_dimensions["B"].width = 30   # service
+ws_cred.column_dimensions["C"].width = 32   # env var(s)
+ws_cred.column_dimensions["D"].width = 22   # where stored
+ws_cred.column_dimensions["E"].width = 55   # how to get it
+
+ws_cred.merge_cells("A1:E1")
+ch = ws_cred["A1"]
+ch.value = "VirtualOffice AI — Credentials & Secrets Registry"
+ch.font = Font(bold=True, color=C_WHITE, size=13)
+ch.fill = hdr_fill(C_HDR_PHASE)
+ch.alignment = Alignment(horizontal="center", vertical="center")
+ws_cred.row_dimensions[1].height = 28
+
+CRED_HEADERS = ["Status", "Service / Key", "Env Var(s)", "Stored In", "How to Get It"]
+for i, h in enumerate(CRED_HEADERS, 1):
+    c = ws_cred.cell(row=2, column=i, value=h)
+    c.font = col_font()
+    c.fill = hdr_fill(C_HDR_COL)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.border = border
+ws_cred.row_dimensions[2].height = 20
+
+# status: "have" | "need" | "optional"
+CREDS = [
+    # ── ALREADY CONFIGURED ───────────────────────────────────────────────────
+    ("have", "Anthropic (Claude API)",
+     "ANTHROPIC_API_KEY",
+     "AWS Secrets Manager\n/voai/staging/anthropic-api-key",
+     "Already set in ECS task. Rotate at: console.anthropic.com → API Keys"),
+
+    ("have", "AWS (ECS deploy + ECR)",
+     "AWS_ACCESS_KEY_ID\nAWS_SECRET_ACCESS_KEY",
+     "~/.aws/credentials\n[voai-staging]",
+     "Already set locally. Add as GitHub repo secrets for CI:\nSettings → Secrets → Actions → New secret"),
+
+    ("have", "PostgreSQL (RDS staging)",
+     "DATABASE_URL\nMIGRATIONS_DATABASE_URL",
+     "AWS Secrets Manager\n/voai/staging/database-url",
+     "Already provisioned on RDS ap-south-1. URL format:\npostgresql://voai_app:PASSWORD@HOST:5432/voai"),
+
+    ("have", "Neo4j AuraDB",
+     "NEO4J_URI\nNEO4J_USER\nNEO4J_PASSWORD",
+     "AWS Secrets Manager\n/voai/staging/neo4j-*",
+     "Already provisioned at neo4j.io/cloud/aura-free.\nURI: neo4j+s://16c05d35.databases.neo4j.io"),
+
+    ("have", "Redis (ElastiCache staging)",
+     "REDIS_URL",
+     "AWS Secrets Manager\n/voai/staging/redis-url",
+     "Already provisioned. URL format:\nredis://HOST:6379"),
+
+    # ── NEED TO GET ──────────────────────────────────────────────────────────
+    ("need", "LiveKit Cloud",
+     "LIVEKIT_URL\nLIVEKIT_API_KEY\nLIVEKIT_API_SECRET",
+     "AWS Secrets Manager\n(not yet created)",
+     "1. Go to livekit.io/cloud → Sign up (free tier available)\n"
+     "2. Create a project (e.g. 'voai-staging')\n"
+     "3. Dashboard → Settings → Keys → Generate API Key\n"
+     "4. Copy URL (wss://YOUR-PROJECT.livekit.cloud), Key, Secret\n"
+     "5. aws secretsmanager create-secret --name /voai/staging/livekit-url ...\n"
+     "6. Add all 3 vars to ECS task definition environment"),
+
+    ("need", "Deepgram (Speech-to-Text)",
+     "DEEPGRAM_API_KEY",
+     "AWS Secrets Manager\n(not yet created)",
+     "1. Go to console.deepgram.com → Sign up (free $200 credit)\n"
+     "2. Dashboard → API Keys → Create a new API key\n"
+     "3. Scope: 'usage' is sufficient for STT\n"
+     "4. aws secretsmanager create-secret --name /voai/staging/deepgram-api-key ...\n"
+     "5. Add DEEPGRAM_API_KEY to media-coordinator ECS service env"),
+
+    ("need", "ElevenLabs (Text-to-Speech)",
+     "ELEVENLABS_API_KEY\nVOICE_ID_SARAH\nVOICE_ID_PRIYA\nVOICE_ID_MARCUS",
+     "AWS Secrets Manager\n(not yet created)",
+     "1. Go to elevenlabs.io → Sign up (free tier: 10k chars/mo)\n"
+     "2. Profile → API Key → Copy\n"
+     "3. Voice Library → pick 3 voices for Sarah / Priya / Marcus\n"
+     "   Click a voice → 'Use' → copy the Voice ID from the URL\n"
+     "4. Store API key in Secrets Manager\n"
+     "5. Add all 4 env vars to media-coordinator ECS service"),
+
+    ("need", "Stripe (Billing)",
+     "STRIPE_SECRET_KEY\nSTRIPE_PRICE_STARTER\nSTRIPE_PRICE_GROWTH\nSTRIPE_PRICE_ENTERPRISE",
+     "AWS Secrets Manager\n(not yet created)",
+     "1. Go to dashboard.stripe.com → Sign up / log in\n"
+     "2. Developers → API Keys → Copy Secret key (sk_live_... or sk_test_...)\n"
+     "3. Products → Add product → Create 3 products with recurring prices\n"
+     "   Copy each Price ID (price_xxx) for STARTER / GROWTH / ENTERPRISE\n"
+     "4. Store secret key in Secrets Manager\n"
+     "5. Add all 4 env vars to ECS task definition"),
+
+    ("need", "Cal.com (Expert scheduling)",
+     "CALCOM_API_KEY\nCALCOM_EVENT_TYPE_ID",
+     "ECS env var\n(not yet created)",
+     "1. Go to cal.com → Sign up / log in\n"
+     "2. Settings → Developer → API Keys → Add new key\n"
+     "3. Event Types → Create event type (e.g. 'Expert Session 30min')\n"
+     "   Copy the numeric event type ID from the URL\n"
+     "4. Add both env vars to ECS task definition environment"),
+
+    ("need", "GitHub (CI/CD)",
+     "GITHUB_TOKEN (implicit)\nAWS_ACCESS_KEY_ID (repo secret)\nAWS_SECRET_ACCESS_KEY (repo secret)",
+     "GitHub repo secrets\n(repo not yet created)",
+     "1. Create GitHub repo: gh repo create mysquad/voai-platform --private\n"
+     "2. git remote add origin https://github.com/mysquad/voai-platform.git\n"
+     "3. git push -u origin main\n"
+     "4. Repo → Settings → Secrets → Actions → add:\n"
+     "   AWS_ACCESS_KEY_ID  (from ~/.aws/credentials [voai-staging])\n"
+     "   AWS_SECRET_ACCESS_KEY  (from ~/.aws/credentials [voai-staging])"),
+
+    # ── OPTIONAL / PHASE 4 ───────────────────────────────────────────────────
+    ("optional", "WorkOS (SSO / AuthKit)",
+     "WORKOS_API_KEY\nWORKOS_CLIENT_ID",
+     "AWS Secrets Manager\n(Phase 4)",
+     "1. workos.com → Sign up → Dashboard → API Keys\n"
+     "2. Copy API Key + Client ID from your application\n"
+     "3. Configure redirect URIs to match your staging domain\n"
+     "4. Add both vars to ECS task definition (replaces dev-mode header auth)"),
+
+    ("optional", "AWS S3 (Object Store)",
+     "OBJECT_STORE_BUCKET\nOBJECT_STORE_ACCESS_KEY_ID\nOBJECT_STORE_SECRET_ACCESS_KEY\nOBJECT_STORE_REGION",
+     "ECS env (bucket already set)\nSecrets Manager for keys",
+     "Bucket already provisioned. Create a scoped IAM user for app access:\n"
+     "IAM → Users → Create user → Attach S3 policy → Security credentials → Access key"),
+
+    ("optional", "Stripe Connect (Expert payouts)",
+     "STRIPE_CONNECT_CLIENT_ID",
+     "AWS Secrets Manager\n(Phase 4)",
+     "1. dashboard.stripe.com → Connect → Get started\n"
+     "2. Platform profile → copy Client ID\n"
+     "3. Implement OAuth flow for experts to onboard their bank accounts"),
+
+    ("optional", "Admin API Key (internal)",
+     "ADMIN_API_KEY",
+     "ECS env var\n(default: dev-admin-key)",
+     "Generate a strong random key:\n"
+     "  openssl rand -hex 32\n"
+     "Set as ADMIN_API_KEY in ECS task definition environment.\n"
+     "Share only with ops team — protects all /v1/admin/* endpoints"),
+
+    ("optional", "Scheduler Secret (internal)",
+     "SCHEDULER_SECRET",
+     "ECS env var\n(not yet set)",
+     "Generate: openssl rand -hex 32\n"
+     "Set same value in both scheduler service and api-server ECS envs.\n"
+     "Used to authenticate x-scheduler-secret header on internal cron calls"),
+]
+
+CRED_STATUS_STYLE = {
+    "have":     (C_HAVE_BG,  C_HAVE_TXT, "✅ Have"),
+    "need":     (C_NEED_BG,  C_NEED_TXT, "🔴 Need"),
+    "optional": (C_OPT_BG,   C_OPT_TXT,  "⚪ Optional"),
+}
+
+for r_idx, (status, service, envvars, stored_in, how_to) in enumerate(CREDS, 3):
+    bg, fg, label = CRED_STATUS_STYLE[status]
+    fill = row_fill(bg)
+    vals = [label, service, envvars, stored_in, how_to]
+    for c_idx, val in enumerate(vals, 1):
+        cell = ws_cred.cell(row=r_idx, column=c_idx, value=val)
+        cell.font = body_font(color=fg, bold=(c_idx == 2))
+        cell.fill = fill
+        cell.border = border
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws_cred.row_dimensions[r_idx].height = 80
+
+# Freeze header
+ws_cred.freeze_panes = "A3"
+
 # Put Summary first
 wb.active = ws_sum
 
