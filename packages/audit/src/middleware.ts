@@ -27,6 +27,9 @@ export function auditMiddleware(postgres: PostgresClient): RequestHandler {
       const userType = req.header('x-user-type') as AuditActorType | undefined;
       const outcome = res.statusCode < 400 ? 'success' : 'failure';
 
+      const requestId =
+        (res.locals['requestId'] as string | undefined) ?? res.getHeader('x-request-id');
+
       void recordAuditEvent(postgres, {
         tenantId,
         actorId,
@@ -35,7 +38,7 @@ export function auditMiddleware(postgres: PostgresClient): RequestHandler {
         outcome,
         ipAddress: req.ip,
         userAgent: req.header('user-agent'),
-        payload: { statusCode: res.statusCode },
+        payload: { statusCode: res.statusCode, requestId },
       });
     });
 
