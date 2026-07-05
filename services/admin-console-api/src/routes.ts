@@ -7,17 +7,30 @@
  * founder-facing ingress rules.
  *
  * Endpoints:
- *   GET  /tenants                    — list all tenants with usage rollup
- *   POST /tenants                    — provision a new tenant (ops onboarding)
- *   GET  /tenants/:id/usage          — detailed usage for a specific tenant
- *   GET  /health/services            — aggregate health of all registered modules
+ *   GET    /tenants                        — list all tenants with usage rollup
+ *   POST   /tenants                        — provision a new tenant (ops onboarding)
+ *   GET    /tenants/:id/usage              — detailed usage for a specific tenant
+ *   GET    /tenants/:id/users              — list users in a tenant
+ *   POST   /tenants/:id/users/invite       — invite a new user to a tenant
+ *   PATCH  /tenants/:id/users/:uid/role    — change a user's role
+ *   DELETE /tenants/:id/users/:uid         — deactivate a user (revokes sessions)
+ *   GET    /health/services                — aggregate health of all registered modules
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import type { PostgresClient } from '@voai/db';
 import type { Logger } from '@voai/types';
-import { isPlatformError, ValidationError } from '@voai/errors';
+import { isPlatformError, NotFoundError, ValidationError } from '@voai/errors';
 import { listAllTenants, provisionTenant } from './tenants.js';
+import {
+  listUsersInTenant,
+  inviteUser,
+  changeUserRole,
+  deactivateUser,
+  type UserRole,
+} from './users.js';
+
+const VALID_ROLES: UserRole[] = ['founder', 'admin', 'expert'];
 
 function handleError(err: unknown, res: Response, log: Logger): void {
   if (isPlatformError(err)) {
@@ -108,6 +121,68 @@ export function buildAdminRouter(postgres: PostgresClient, log: Logger, adminKey
           eventCount: Number(r['event_count']),
         })),
       });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.get('/tenants/:id/users', async (req: Request, res: Response) => {
+    try {
+      const id = req.params['id']!;
+      const q = req.query as Record<string, string>;
+      const limit = q['limit'] ? parseInt(q['limit'], 10) : 50;
+      const offset = q['offset'] ? parseInt(q['offset'], 10) : 0;
+      const result = await listUsersInTenant(postgres, id, { limit, offset });
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.post('/tenants/:id/users/invite', async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.params['id']!;
+      const body = req.body as Record<string, unknown>;
+      if (typeof body.email !== 'string' || !body.email.trim())
+        throw new ValidationError('email required');
+      if (!VALID_ROLES.includes(body.role as UserRole))
+        throw new ValidationError(`role must be one of: ${VALID_ROLES.join(', ')}`);
+      const result = await inviteUser(postgres, {
+        tenantId,
+        email: body.email as string,
+        role: body.role as UserRole,
+      });
+      log.info('user invited', { tenantId, email: result.email, role: result.role });
+      res.status(201).json(result);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.patch('/tenants/:id/users/:uid/role', async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.params['id']!;
+      const userId = req.params['uid']!;
+      const body = req.body as Record<string, unknown>;
+      if (!VALID_ROLES.includes(body.role as UserRole))
+        throw new ValidationError(`role must be one of: ${VALID_ROLES.join(', ')}`);
+      const user = await changeUserRole(postgres, tenantId, userId, body.role as UserRole);
+      if (!user) throw new NotFoundError('user not found in tenant');
+      log.info('user role changed', { tenantId, userId, role: body.role });
+      res.status(200).json(user);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.delete('/tenants/:id/users/:uid', async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.params['id']!;
+      const userId = req.params['uid']!;
+      const ok = await deactivateUser(postgres, tenantId, userId);
+      if (!ok) throw new NotFoundError('user not found in tenant');
+      log.info('user deactivated', { tenantId, userId });
+      res.status(204).send();
     } catch (err) {
       handleError(err, res, log);
     }
