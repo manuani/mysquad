@@ -195,11 +195,26 @@ export async function updateExpert(
   const setClauses: string[] = ['updated_at = now()'];
   const params: unknown[] = [];
 
-  if (input.name !== undefined) { params.push(input.name.trim()); setClauses.push(`name = $${params.length}`); }
-  if (input.bio !== undefined) { params.push(input.bio); setClauses.push(`bio = $${params.length}`); }
-  if (input.linkedinUrl !== undefined) { params.push(input.linkedinUrl); setClauses.push(`linkedin_url = $${params.length}`); }
-  if (input.status !== undefined) { params.push(input.status); setClauses.push(`status = $${params.length}`); }
-  if (input.hourlyRateUsdCents !== undefined) { params.push(input.hourlyRateUsdCents); setClauses.push(`hourly_rate_usd_cents = $${params.length}`); }
+  if (input.name !== undefined) {
+    params.push(input.name.trim());
+    setClauses.push(`name = $${params.length}`);
+  }
+  if (input.bio !== undefined) {
+    params.push(input.bio);
+    setClauses.push(`bio = $${params.length}`);
+  }
+  if (input.linkedinUrl !== undefined) {
+    params.push(input.linkedinUrl);
+    setClauses.push(`linkedin_url = $${params.length}`);
+  }
+  if (input.status !== undefined) {
+    params.push(input.status);
+    setClauses.push(`status = $${params.length}`);
+  }
+  if (input.hourlyRateUsdCents !== undefined) {
+    params.push(input.hourlyRateUsdCents);
+    setClauses.push(`hourly_rate_usd_cents = $${params.length}`);
+  }
 
   if (params.length === 0) throw new ValidationError('no fields to update');
 

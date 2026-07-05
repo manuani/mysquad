@@ -10,7 +10,12 @@
 
 import type { TenantContext } from '@voai/auth-context';
 import type { PostgresClient } from '@voai/db';
-import { BRAIN_DOMAINS, listBrainContentByDomain, searchBrainContent, type BrainContentItem } from '@voai/brain';
+import {
+  BRAIN_DOMAINS,
+  listBrainContentByDomain,
+  searchBrainContent,
+  type BrainContentItem,
+} from '@voai/brain';
 
 const MAX_ITEMS = 5;
 const MAX_KEYWORDS = 5;
@@ -19,12 +24,58 @@ const MAX_KEYWORDS = 5;
 // exhaustive, just enough to keep keyword search from wasting calls on
 // "what", "the", "our", etc.
 const STOPWORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'do', 'does', 'did', 'doing', 'have', 'has', 'had', 'having',
-  'what', 'when', 'where', 'which', 'who', 'whom', 'why', 'how',
-  'this', 'that', 'these', 'those', 'and', 'but', 'or', 'if', 'then',
-  'our', 'your', 'their', 'his', 'her', 'its', 'we', 'you', 'they',
-  'should', 'would', 'could', 'will', 'can', 'about', 'with', 'for',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'do',
+  'does',
+  'did',
+  'doing',
+  'have',
+  'has',
+  'had',
+  'having',
+  'what',
+  'when',
+  'where',
+  'which',
+  'who',
+  'whom',
+  'why',
+  'how',
+  'this',
+  'that',
+  'these',
+  'those',
+  'and',
+  'but',
+  'or',
+  'if',
+  'then',
+  'our',
+  'your',
+  'their',
+  'his',
+  'her',
+  'its',
+  'we',
+  'you',
+  'they',
+  'should',
+  'would',
+  'could',
+  'will',
+  'can',
+  'about',
+  'with',
+  'for',
 ]);
 
 /**
@@ -68,7 +119,9 @@ export async function fetchBrainContextForMessage(
 
   if (keywords.length > 0) {
     const matches = (
-      await Promise.all(keywords.map((kw) => searchBrainContent(tenantContext, postgres, kw).catch(() => [])))
+      await Promise.all(
+        keywords.map((kw) => searchBrainContent(tenantContext, postgres, kw).catch(() => [])),
+      )
     ).flat();
 
     if (matches.length > 0) {
@@ -79,7 +132,9 @@ export async function fetchBrainContextForMessage(
   }
 
   const recent = (
-    await Promise.all(BRAIN_DOMAINS.map((domain) => listBrainContentByDomain(tenantContext, postgres, domain)))
+    await Promise.all(
+      BRAIN_DOMAINS.map((domain) => listBrainContentByDomain(tenantContext, postgres, domain)),
+    )
   ).flat();
   recent.sort(byRecencyDesc);
   return recent.slice(0, MAX_ITEMS).map(formatItem);

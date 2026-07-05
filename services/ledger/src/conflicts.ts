@@ -110,7 +110,9 @@ export async function getConflict(
   conflictId: string,
 ): Promise<ConflictRow | null> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<ConflictSqlRow>('select * from conflicts where id = $1', [conflictId]);
+    const result = await client.query<ConflictSqlRow>('select * from conflicts where id = $1', [
+      conflictId,
+    ]);
     const row = result.rows[0];
     return row ? toConflict(row) : null;
   });
@@ -129,13 +131,19 @@ export async function listUnresolvedConflicts(
   });
 }
 
-const VALID_RESOLUTION_TRANSITIONS: Record<ConflictResolutionState, readonly ConflictResolutionState[]> = {
+const VALID_RESOLUTION_TRANSITIONS: Record<
+  ConflictResolutionState,
+  readonly ConflictResolutionState[]
+> = {
   detected: ['acknowledged', 'resolved'],
   acknowledged: ['resolved'],
   resolved: [],
 };
 
-function assertValidResolutionTransition(from: ConflictResolutionState, to: ConflictResolutionState): void {
+function assertValidResolutionTransition(
+  from: ConflictResolutionState,
+  to: ConflictResolutionState,
+): void {
   if (!VALID_RESOLUTION_TRANSITIONS[from].includes(to)) {
     throw new ValidationError(`cannot transition conflict from ${from} to ${to}`);
   }
@@ -147,7 +155,9 @@ export async function acknowledgeConflict(
   conflictId: string,
 ): Promise<ConflictRow> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<ConflictSqlRow>('select * from conflicts where id = $1', [conflictId]);
+    const existing = await client.query<ConflictSqlRow>('select * from conflicts where id = $1', [
+      conflictId,
+    ]);
     const existingRow = existing.rows[0];
     if (!existingRow) throw new NotFoundError(`conflict ${conflictId} not found`);
 
@@ -189,7 +199,9 @@ export async function resolveConflict(
   if (!input.resolutionNote) throw new ValidationError('resolutionNote is required');
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<ConflictSqlRow>('select * from conflicts where id = $1', [input.conflictId]);
+    const existing = await client.query<ConflictSqlRow>('select * from conflicts where id = $1', [
+      input.conflictId,
+    ]);
     const existingRow = existing.rows[0];
     if (!existingRow) throw new NotFoundError(`conflict ${input.conflictId} not found`);
 

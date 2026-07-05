@@ -74,7 +74,7 @@ export async function graphMatchExperts(
 
   const session = graphClient.neo4j.session();
   try {
-    const result = await session.run(
+    const result = (await session.run(
       `UNWIND $tokens AS tok
        MATCH (d:Domain) WHERE toLower(d.name) CONTAINS toLower(tok)
        MATCH (e:Expert {tenantId: $tenantId})-[r:HAS_DOMAIN]->(d)
@@ -82,7 +82,7 @@ export async function graphMatchExperts(
        ORDER BY graphScore DESC
        LIMIT $topK`,
       { tokens: topicTokens, tenantId: tc.tenantId, topK: topK },
-    ) as { records: Array<{ get(key: string): unknown }> };
+    )) as { records: Array<{ get(key: string): unknown }> };
     return result.records.map((rec) => ({
       expertId: rec.get('expertId') as string,
       graphScore: (rec.get('graphScore') as number) ?? 0,
@@ -104,10 +104,7 @@ export async function removeExpertFromGraph(
 
   const session = graphClient.neo4j.session();
   try {
-    await session.run(
-      `MATCH (e:Expert {id: $expertId}) DETACH DELETE e`,
-      { expertId },
-    );
+    await session.run(`MATCH (e:Expert {id: $expertId}) DETACH DELETE e`, { expertId });
   } finally {
     await session.close();
   }

@@ -3,7 +3,10 @@ import { estimateCostMicro, recordMeteringEvent } from '../src/metering.js';
 import type { TenantContext } from '@voai/auth-context';
 
 const TC: TenantContext = {
-  tenantId: 'tenant-1', userId: 'user-1', userType: 'founder', sessionId: 'sess-1',
+  tenantId: 'tenant-1',
+  userId: 'user-1',
+  userType: 'founder',
+  sessionId: 'sess-1',
 };
 
 const BASE_ROW = {
@@ -35,7 +38,11 @@ describe('estimateCostMicro', () => {
 
   it('uses known haiku pricing', () => {
     // Haiku: 1 micro per input token, 5 micro per output token
-    const { inputCost, outputCost, totalCost } = estimateCostMicro('claude-haiku-4-5-20251001', 1000, 200);
+    const { inputCost, outputCost, totalCost } = estimateCostMicro(
+      'claude-haiku-4-5-20251001',
+      1000,
+      200,
+    );
     expect(inputCost).toBe(1000);
     expect(outputCost).toBe(1000);
     expect(totalCost).toBe(2000);

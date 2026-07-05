@@ -17,10 +17,7 @@ export interface MorningBriefingJobConfig {
   readonly schedulerSecret: string;
 }
 
-export function createMorningBriefingJob(
-  config: MorningBriefingJobConfig,
-  log: Logger,
-) {
+export function createMorningBriefingJob(config: MorningBriefingJobConfig, log: Logger) {
   return async function runMorningBriefing(): Promise<void> {
     log.info('morning briefing job started');
 
@@ -38,11 +35,13 @@ export function createMorningBriefingJob(
     });
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-      throw new Error(`morning briefing endpoint returned ${res.status}: ${String(body['message'] ?? '')}`);
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      throw new Error(
+        `morning briefing endpoint returned ${res.status}: ${String(body['message'] ?? '')}`,
+      );
     }
 
-    const result = await res.json() as { tenantsProcessed: number };
+    const result = (await res.json()) as { tenantsProcessed: number };
     log.info('morning briefing job completed', { tenantsProcessed: result.tenantsProcessed });
   };
 }

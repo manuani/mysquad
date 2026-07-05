@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { TenantContext } from '@voai/auth-context';
 import { ValidationError, NotFoundError } from '@voai/errors';
-import { createAction, transitionActionState, listPendingOrInProgressActions } from '../src/actions.js';
+import {
+  createAction,
+  transitionActionState,
+  listPendingOrInProgressActions,
+} from '../src/actions.js';
 import { createFakePostgres } from './fake-postgres.js';
 
 const TENANT_CONTEXT: TenantContext = {
@@ -42,8 +46,14 @@ describe('actions lifecycle', () => {
 
   it('rejects transitioning a completed action back to pending', async () => {
     const action = await createAction(TENANT_CONTEXT, postgres, { assignedTo: 'agent' });
-    await transitionActionState(TENANT_CONTEXT, postgres, { actionId: action.id, state: 'in_progress' });
-    await transitionActionState(TENANT_CONTEXT, postgres, { actionId: action.id, state: 'completed' });
+    await transitionActionState(TENANT_CONTEXT, postgres, {
+      actionId: action.id,
+      state: 'in_progress',
+    });
+    await transitionActionState(TENANT_CONTEXT, postgres, {
+      actionId: action.id,
+      state: 'completed',
+    });
 
     await expect(
       transitionActionState(TENANT_CONTEXT, postgres, { actionId: action.id, state: 'pending' }),
@@ -52,10 +62,16 @@ describe('actions lifecycle', () => {
 
   it('rejects transitioning a cancelled action to any other state', async () => {
     const action = await createAction(TENANT_CONTEXT, postgres, { assignedTo: 'agent' });
-    await transitionActionState(TENANT_CONTEXT, postgres, { actionId: action.id, state: 'cancelled' });
+    await transitionActionState(TENANT_CONTEXT, postgres, {
+      actionId: action.id,
+      state: 'cancelled',
+    });
 
     await expect(
-      transitionActionState(TENANT_CONTEXT, postgres, { actionId: action.id, state: 'in_progress' }),
+      transitionActionState(TENANT_CONTEXT, postgres, {
+        actionId: action.id,
+        state: 'in_progress',
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -87,7 +103,10 @@ describe('actions lifecycle', () => {
   it('requires delegatedToExpertId when transitioning to delegated_to_expert', async () => {
     const action = await createAction(TENANT_CONTEXT, postgres, { assignedTo: 'founder' });
     await expect(
-      transitionActionState(TENANT_CONTEXT, postgres, { actionId: action.id, state: 'delegated_to_expert' }),
+      transitionActionState(TENANT_CONTEXT, postgres, {
+        actionId: action.id,
+        state: 'delegated_to_expert',
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -114,7 +133,10 @@ describe('actions lifecycle', () => {
 
   it('throws NotFoundError for an unknown action id', async () => {
     await expect(
-      transitionActionState(TENANT_CONTEXT, postgres, { actionId: 'no-such-id', state: 'in_progress' }),
+      transitionActionState(TENANT_CONTEXT, postgres, {
+        actionId: 'no-such-id',
+        state: 'in_progress',
+      }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 

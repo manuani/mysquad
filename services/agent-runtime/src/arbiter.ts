@@ -50,14 +50,15 @@ export class Arbiter {
    * in order. Personas not in `gatedPersonas` (were skipped by gate) are
    * excluded.
    */
-  rank(gatedPersonas: readonly GatedPersona[], maxSpeakers = DEFAULT_MAX_SPEAKERS): RankedPersona[] {
+  rank(
+    gatedPersonas: readonly GatedPersona[],
+    maxSpeakers = DEFAULT_MAX_SPEAKERS,
+  ): RankedPersona[] {
     const now = Date.now();
 
     const scored: RankedPersona[] = gatedPersonas.map(({ persona, relevanceScore }) => {
       const lastSpokeMs = this.lastSpoke.get(persona.id);
-      const minutesSilent = lastSpokeMs
-        ? (now - lastSpokeMs) / 60_000
-        : SILENCE_FULL_SCORE_MINUTES; // never spoken → max silence score
+      const minutesSilent = lastSpokeMs ? (now - lastSpokeMs) / 60_000 : SILENCE_FULL_SCORE_MINUTES; // never spoken → max silence score
 
       const silenceScore = Math.min(minutesSilent / SILENCE_FULL_SCORE_MINUTES, 1.0);
       const compositeScore = relevanceScore * RELEVANCE_WEIGHT + silenceScore * SILENCE_WEIGHT;

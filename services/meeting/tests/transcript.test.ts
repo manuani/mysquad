@@ -96,7 +96,9 @@ describe('transcript persistence', () => {
   });
 
   it('getTranscript on an unknown session raises NotFoundError', async () => {
-    await expect(getTranscript(TENANT_CONTEXT, postgres, 'does-not-exist')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(getTranscript(TENANT_CONTEXT, postgres, 'does-not-exist')).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 
   it('getTranscript returns an empty array for a session with no entries', async () => {

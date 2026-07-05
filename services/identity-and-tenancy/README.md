@@ -51,7 +51,7 @@ what's buildable without real WorkOS credentials.
   `findUserByEmailAcrossTenants`, `getUserInTenant`. All Postgres access
   goes through `db.postgres.withTenant(...)`; no raw queries. Every
   function that operates on an existing tenant takes `tenantContext:
-  TenantContext` first, per ADR 007.
+TenantContext` first, per ADR 007.
 - **Migration**
   `packages/db/migrations/1750000000001_identity_and_tenancy.sql` — adds
   `auth_sessions` (issued_at/expires_at/tenant_id/user_id/token_hash),

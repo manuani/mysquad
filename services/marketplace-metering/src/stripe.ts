@@ -16,14 +16,21 @@ export type SubscriptionTier = 'starter' | 'growth' | 'enterprise';
 
 export interface BillingClient {
   createCustomer(email: string, tenantId: string): Promise<string>;
-  createSubscription(customerId: string, tier: SubscriptionTier): Promise<{ subscriptionId: string; status: string }>;
-  chargeExpertSession(customerId: string, amountCents: number, description: string): Promise<string>;
+  createSubscription(
+    customerId: string,
+    tier: SubscriptionTier,
+  ): Promise<{ subscriptionId: string; status: string }>;
+  chargeExpertSession(
+    customerId: string,
+    amountCents: number,
+    description: string,
+  ): Promise<string>;
   isLive: boolean;
 }
 
 const STRIPE_PRICE_IDS: Record<SubscriptionTier, string> = {
-  starter:    process.env['STRIPE_PRICE_STARTER']    ?? 'price_starter_placeholder',
-  growth:     process.env['STRIPE_PRICE_GROWTH']     ?? 'price_growth_placeholder',
+  starter: process.env['STRIPE_PRICE_STARTER'] ?? 'price_starter_placeholder',
+  growth: process.env['STRIPE_PRICE_GROWTH'] ?? 'price_growth_placeholder',
   enterprise: process.env['STRIPE_PRICE_ENTERPRISE'] ?? 'price_enterprise_placeholder',
 };
 
@@ -39,7 +46,11 @@ export function createBillingClient(): BillingClient {
       async createSubscription(customerId: string, tier: SubscriptionTier) {
         return { subscriptionId: `sub_stub_${customerId}_${tier}`, status: 'active' };
       },
-      async chargeExpertSession(customerId: string, amountCents: number, description: string): Promise<string> {
+      async chargeExpertSession(
+        customerId: string,
+        amountCents: number,
+        description: string,
+      ): Promise<string> {
         return `ch_stub_${customerId}_${amountCents}_${description.slice(0, 8)}`;
       },
     };
@@ -70,7 +81,11 @@ export function createBillingClient(): BillingClient {
       return { subscriptionId: subscription.id, status: subscription.status };
     },
 
-    async chargeExpertSession(customerId: string, amountCents: number, description: string): Promise<string> {
+    async chargeExpertSession(
+      customerId: string,
+      amountCents: number,
+      description: string,
+    ): Promise<string> {
       // Create an invoice item and auto-pay it via the customer's default payment method
       await stripe.invoiceItems.create({
         customer: customerId,

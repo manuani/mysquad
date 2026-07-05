@@ -61,7 +61,10 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
           quantity: body.quantity as number,
           model: typeof body.model === 'string' ? body.model : undefined,
           unitCostMicro: typeof body.unitCostMicro === 'number' ? body.unitCostMicro : undefined,
-          metadata: typeof body.metadata === 'object' && body.metadata !== null ? body.metadata as Record<string, unknown> : undefined,
+          metadata:
+            typeof body.metadata === 'object' && body.metadata !== null
+              ? (body.metadata as Record<string, unknown>)
+              : undefined,
         }),
       );
       res.status(201).json(event);
@@ -74,7 +77,9 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
     try {
       const tc = tenantContextFromHeaders(req);
       const q = req.query as Record<string, string>;
-      const from = q['from'] ? new Date(q['from']) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const from = q['from']
+        ? new Date(q['from'])
+        : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       const to = q['to'] ? new Date(q['to']) : new Date();
       if (isNaN(from.getTime())) throw new ValidationError('invalid from date');
       if (isNaN(to.getTime())) throw new ValidationError('invalid to date');
@@ -93,7 +98,11 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
       const body = req.body as Record<string, unknown>;
       if (typeof body.email !== 'string') throw new ValidationError('email required');
       const customerId = await billing.createCustomer(body.email as string, tc.tenantId);
-      log.info('stripe customer created', { customerId, tenantId: tc.tenantId, live: billing.isLive });
+      log.info('stripe customer created', {
+        customerId,
+        tenantId: tc.tenantId,
+        live: billing.isLive,
+      });
       res.status(201).json({ customerId, live: billing.isLive });
     } catch (err) {
       handleError(err, res, log);
@@ -108,7 +117,10 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
         throw new ValidationError(`tier must be one of: ${VALID_TIERS.join(', ')}`);
       }
       if (typeof body.customerId !== 'string') throw new ValidationError('customerId required');
-      const result = await billing.createSubscription(body.customerId as string, body.tier as SubscriptionTier);
+      const result = await billing.createSubscription(
+        body.customerId as string,
+        body.tier as SubscriptionTier,
+      );
       log.info('subscription created', { ...result, tenantId: tc.tenantId, tier: body.tier });
       res.status(201).json({ ...result, live: billing.isLive });
     } catch (err) {
@@ -121,14 +133,19 @@ export function buildMeteringRouter(postgres: PostgresClient, log: Logger): Rout
       const tc = tenantContextFromHeaders(req);
       const body = req.body as Record<string, unknown>;
       if (typeof body.customerId !== 'string') throw new ValidationError('customerId required');
-      if (typeof body.amountCents !== 'number' || body.amountCents <= 0) throw new ValidationError('amountCents must be positive');
+      if (typeof body.amountCents !== 'number' || body.amountCents <= 0)
+        throw new ValidationError('amountCents must be positive');
       if (typeof body.description !== 'string') throw new ValidationError('description required');
       const chargeId = await billing.chargeExpertSession(
         body.customerId as string,
         body.amountCents as number,
         body.description as string,
       );
-      log.info('expert session charged', { chargeId, tenantId: tc.tenantId, amountCents: body.amountCents });
+      log.info('expert session charged', {
+        chargeId,
+        tenantId: tc.tenantId,
+        amountCents: body.amountCents,
+      });
       res.status(201).json({ chargeId, live: billing.isLive });
     } catch (err) {
       handleError(err, res, log);

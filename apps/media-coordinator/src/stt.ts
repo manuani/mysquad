@@ -63,7 +63,9 @@ export function createSttClient(apiKey: string | undefined): SttClient {
       emitter.sendAudio = (chunk: Buffer) => {
         // Deepgram's send() expects Blob | ArrayBuffer | string — slice the
         // Node Buffer's underlying ArrayBuffer to the correct byte range.
-        connection.send(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer);
+        connection.send(
+          chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer,
+        );
       };
 
       emitter.close = () => {

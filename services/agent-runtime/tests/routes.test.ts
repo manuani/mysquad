@@ -45,7 +45,7 @@ describe('agent-runtime routes', () => {
 
   beforeEach(async () => {
     routingService = makeFakeRoutingService(async () => ({
-      content: "Based on your numbers, you have about five months of runway.",
+      content: 'Based on your numbers, you have about five months of runway.',
       model: 'fake-model',
       usage: { inputTokens: 42, outputTokens: 18 },
     }));
@@ -88,8 +88,8 @@ describe('agent-runtime routes', () => {
     });
 
     expect(routingService.complete).toHaveBeenCalledTimes(1);
-    const [tenantContextArg, requestArg] = (routingService.complete as ReturnType<typeof vi.fn>).mock
-      .calls[0] as [TenantContext, LlmCompletionRequest];
+    const [tenantContextArg, requestArg] = (routingService.complete as ReturnType<typeof vi.fn>)
+      .mock.calls[0] as [TenantContext, LlmCompletionRequest];
     expect(tenantContextArg).toEqual({
       tenantId: 'tenant-1',
       userId: 'user-1',

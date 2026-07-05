@@ -14,7 +14,12 @@ import { isPlatformError, UnauthenticatedError, ValidationError } from '@voai/er
 import type { Logger } from '@voai/types';
 import type { AuthProvider, SignInMethod } from './auth-provider.js';
 
-const SIGN_IN_METHODS: readonly SignInMethod[] = ['apple', 'google', 'microsoft', 'email_magic_link'];
+const SIGN_IN_METHODS: readonly SignInMethod[] = [
+  'apple',
+  'google',
+  'microsoft',
+  'email_magic_link',
+];
 
 function isSignInMethod(value: unknown): value is SignInMethod {
   return typeof value === 'string' && (SIGN_IN_METHODS as readonly string[]).includes(value);
@@ -30,7 +35,9 @@ function extractBearerToken(req: Request): string | null {
 
 function handleError(err: unknown, res: Response, log: Logger): void {
   if (isPlatformError(err)) {
-    res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
+    res
+      .status(err.httpStatus)
+      .json({ error: err.code, message: err.message, details: err.details });
     return;
   }
   // Unexpected (non-platform) errors are exactly the ones worth seeing —

@@ -129,7 +129,9 @@ export async function getDecision(
   decisionId: string,
 ): Promise<DecisionRow | null> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [decisionId]);
+    const result = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [
+      decisionId,
+    ]);
     const row = result.rows[0];
     return row ? toDecision(row) : null;
   });
@@ -140,7 +142,10 @@ export async function listDecisions(
   postgres: PostgresClient,
 ): Promise<DecisionRow[]> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<DecisionSqlRow>('select * from decisions order by created_at desc', []);
+    const result = await client.query<DecisionSqlRow>(
+      'select * from decisions order by created_at desc',
+      [],
+    );
     return result.rows.map(toDecision);
   });
 }
@@ -172,7 +177,9 @@ export async function confirmDecision(
   confirmedBy: string,
 ): Promise<DecisionRow> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [decisionId]);
+    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [
+      decisionId,
+    ]);
     const existingRow = existing.rows[0];
     if (!existingRow) throw new NotFoundError(`decision ${decisionId} not found`);
 
@@ -197,7 +204,9 @@ export async function abandonDecision(
   reason?: string,
 ): Promise<DecisionRow> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [decisionId]);
+    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [
+      decisionId,
+    ]);
     const existingRow = existing.rows[0];
     if (!existingRow) throw new NotFoundError(`decision ${decisionId} not found`);
 
@@ -228,7 +237,9 @@ export async function recordDecisionOutcome(
   if (!input.outcome) throw new ValidationError('outcome is required');
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [input.decisionId]);
+    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [
+      input.decisionId,
+    ]);
     const existingRow = existing.rows[0];
     if (!existingRow) throw new NotFoundError(`decision ${input.decisionId} not found`);
 
@@ -287,12 +298,17 @@ export async function supersedeDecision(
   }
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [priorDecisionId]);
+    const existing = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [
+      priorDecisionId,
+    ]);
     const priorRow = existing.rows[0];
     if (!priorRow) throw new NotFoundError(`decision ${priorDecisionId} not found`);
 
     if (newDecisionId) {
-      const newExisting = await client.query<DecisionSqlRow>('select * from decisions where id = $1', [newDecisionId]);
+      const newExisting = await client.query<DecisionSqlRow>(
+        'select * from decisions where id = $1',
+        [newDecisionId],
+      );
       if (!newExisting.rows[0]) throw new NotFoundError(`decision ${newDecisionId} not found`);
     }
 

@@ -73,7 +73,11 @@ describe('routing routes', () => {
   });
 
   it('dispatches a valid request to RoutingService.complete with the parsed tenant context', async () => {
-    const result = { content: 'hi there', model: 'fake-model', usage: { inputTokens: 1, outputTokens: 1 } };
+    const result = {
+      content: 'hi there',
+      model: 'fake-model',
+      usage: { inputTokens: 1, outputTokens: 1 },
+    };
     routingService.complete.mockResolvedValue(result);
     await listen(startApp());
 
@@ -109,6 +113,8 @@ describe('routing routes', () => {
 
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body).toEqual(expect.objectContaining({ error: 'PROVIDER_UNAVAILABLE', message: 'no key configured' }));
+    expect(body).toEqual(
+      expect.objectContaining({ error: 'PROVIDER_UNAVAILABLE', message: 'no key configured' }),
+    );
   });
 });

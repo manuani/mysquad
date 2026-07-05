@@ -2,7 +2,7 @@
   "name": "@voai/agent-runtime",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent Runtime \u2014 persona loading, contribution generation, sub-agent dispatch, scoped-context invocation",
+  "description": "Agent Runtime — persona loading, contribution generation, sub-agent dispatch, scoped-context invocation",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

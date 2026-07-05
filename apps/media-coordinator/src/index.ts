@@ -19,7 +19,11 @@ import { createLogger } from '@voai/telemetry';
 import { loadVoiceConfig } from './voice-config.js';
 import { createSttClient } from './stt.js';
 import { createTtsClient } from './tts.js';
-import { createPipelineSession, type PipelineContribution, type PipelineSession } from './pipeline.js';
+import {
+  createPipelineSession,
+  type PipelineContribution,
+  type PipelineSession,
+} from './pipeline.js';
 
 const config = loadVoiceConfig();
 const log = createLogger({ level: 'info', service: 'media-coordinator', bindings: {} });
@@ -52,8 +56,14 @@ app.get('/healthz', (_req: Request, res: Response) => {
 
 app.post('/sessions/:id/start', (req: Request, res: Response) => {
   const sessionId = req.params['id'];
-  if (!sessionId) { res.status(400).json({ error: 'sessionId required' }); return; }
-  if (sessions.has(sessionId)) { res.status(409).json({ error: 'session already active' }); return; }
+  if (!sessionId) {
+    res.status(400).json({ error: 'sessionId required' });
+    return;
+  }
+  if (sessions.has(sessionId)) {
+    res.status(409).json({ error: 'session already active' });
+    return;
+  }
 
   const body = req.body as { tenantId?: string; userId?: string; sessionToken?: string };
   if (!body.tenantId || !body.userId || !body.sessionToken) {
@@ -102,7 +112,10 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
 app.post('/sessions/:id/audio', (req: Request, res: Response) => {
   const sessionId = req.params['id'];
   const state = sessions.get(sessionId ?? '');
-  if (!state) { res.status(404).json({ error: 'session not found' }); return; }
+  if (!state) {
+    res.status(404).json({ error: 'session not found' });
+    return;
+  }
 
   if (!Buffer.isBuffer(req.body)) {
     res.status(400).json({ error: 'body must be raw PCM binary' });
@@ -116,7 +129,10 @@ app.post('/sessions/:id/audio', (req: Request, res: Response) => {
 app.get('/sessions/:id/status', (req: Request, res: Response) => {
   const sessionId = req.params['id'];
   const state = sessions.get(sessionId ?? '');
-  if (!state) { res.status(404).json({ error: 'session not found' }); return; }
+  if (!state) {
+    res.status(404).json({ error: 'session not found' });
+    return;
+  }
 
   res.json({
     sessionId,
@@ -131,7 +147,10 @@ app.get('/sessions/:id/status', (req: Request, res: Response) => {
 app.post('/sessions/:id/end', (req: Request, res: Response) => {
   const sessionId = req.params['id'];
   const state = sessions.get(sessionId ?? '');
-  if (!state) { res.status(404).json({ error: 'session not found' }); return; }
+  if (!state) {
+    res.status(404).json({ error: 'session not found' });
+    return;
+  }
 
   state.pipeline.close();
   sessions.delete(sessionId ?? '');

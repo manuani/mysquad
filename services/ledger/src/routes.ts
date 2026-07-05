@@ -49,7 +49,9 @@ function tenantContextFromHeaders(req: Request) {
 
 function handleError(err: unknown, res: Response): void {
   if (isPlatformError(err)) {
-    res.status(err.httpStatus).json({ error: err.code, message: err.message, details: err.details });
+    res
+      .status(err.httpStatus)
+      .json({ error: err.code, message: err.message, details: err.details });
     return;
   }
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
@@ -67,7 +69,12 @@ const ACTION_STATES: readonly ActionState[] = [
   'snoozed',
   'delegated_to_expert',
 ];
-const SUPERSESSION_MODES: readonly SupersessionMode[] = ['refines', 'replaces', 'parallel', 'abandons'];
+const SUPERSESSION_MODES: readonly SupersessionMode[] = [
+  'refines',
+  'replaces',
+  'parallel',
+  'abandons',
+];
 const CONFLICT_SEVERITIES: readonly ConflictSeverity[] = ['low', 'medium', 'high'];
 
 function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
@@ -81,7 +88,8 @@ export function buildLedgerRouter(postgres: PostgresClient): Router {
     try {
       const tenantContext = tenantContextFromHeaders(req);
       const body = req.body as Record<string, unknown>;
-      if (typeof body.decisionType !== 'string') throw new ValidationError('decisionType is required');
+      if (typeof body.decisionType !== 'string')
+        throw new ValidationError('decisionType is required');
       if (typeof body.summary !== 'string') throw new ValidationError('summary is required');
       if (!isOneOf(STAKES_LEVELS, body.stakesLevel)) {
         throw new ValidationError(`stakesLevel must be one of ${STAKES_LEVELS.join(', ')}`);
@@ -173,7 +181,8 @@ export function buildLedgerRouter(postgres: PostgresClient): Router {
         state: body.state,
         blockedReason: typeof body.blockedReason === 'string' ? body.blockedReason : null,
         snoozedUntil: typeof body.snoozedUntil === 'string' ? body.snoozedUntil : null,
-        delegatedToExpertId: typeof body.delegatedToExpertId === 'string' ? body.delegatedToExpertId : null,
+        delegatedToExpertId:
+          typeof body.delegatedToExpertId === 'string' ? body.delegatedToExpertId : null,
         outcome: typeof body.outcome === 'string' ? body.outcome : null,
       });
       res.status(200).json(action);
@@ -186,7 +195,8 @@ export function buildLedgerRouter(postgres: PostgresClient): Router {
     try {
       const tenantContext = tenantContextFromHeaders(req);
       const body = req.body as Record<string, unknown>;
-      if (typeof body.conflictType !== 'string') throw new ValidationError('conflictType is required');
+      if (typeof body.conflictType !== 'string')
+        throw new ValidationError('conflictType is required');
       if (typeof body.sourceAType !== 'string' || typeof body.sourceAId !== 'string') {
         throw new ValidationError('sourceAType and sourceAId are required');
       }
@@ -215,7 +225,8 @@ export function buildLedgerRouter(postgres: PostgresClient): Router {
     try {
       const tenantContext = tenantContextFromHeaders(req);
       const body = req.body as Record<string, unknown>;
-      if (typeof body.resolutionNote !== 'string') throw new ValidationError('resolutionNote is required');
+      if (typeof body.resolutionNote !== 'string')
+        throw new ValidationError('resolutionNote is required');
 
       const conflict = await resolveConflict(tenantContext, postgres, {
         conflictId: requireParam(req, 'id'),

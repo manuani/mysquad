@@ -32,7 +32,18 @@ export function loadVoiceConfig(): VoiceConfigPartial {
   const apiServerUrl = process.env['API_SERVER_URL'] ?? 'http://localhost:3000';
   const port = parseInt(process.env['MEDIA_COORDINATOR_PORT'] ?? '3001', 10);
 
-  const isVoiceReady = Boolean(livekitUrl && livekitApiKey && livekitApiSecret && deepgramApiKey && elevenLabsApiKey);
+  const isVoiceReady = Boolean(
+    livekitUrl && livekitApiKey && livekitApiSecret && deepgramApiKey && elevenLabsApiKey,
+  );
 
-  return { livekitUrl, livekitApiKey, livekitApiSecret, deepgramApiKey, elevenLabsApiKey, apiServerUrl, port, isVoiceReady };
+  return {
+    livekitUrl,
+    livekitApiKey,
+    livekitApiSecret,
+    deepgramApiKey,
+    elevenLabsApiKey,
+    apiServerUrl,
+    port,
+    isVoiceReady,
+  };
 }

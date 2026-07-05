@@ -18,7 +18,7 @@ import type { TenantScopedClient } from '@voai/db';
 import { ValidationError } from '@voai/errors';
 
 export interface AvailableSlot {
-  readonly startUtc: string;  // ISO8601
+  readonly startUtc: string; // ISO8601
   readonly endUtc: string;
   readonly durationMinutes: number;
 }
@@ -53,7 +53,7 @@ export async function getAvailableSlots(
   _tc: TenantContext,
   client: TenantScopedClient,
   expertId: string,
-  dateUtc: string,  // 'YYYY-MM-DD'
+  dateUtc: string, // 'YYYY-MM-DD'
 ): Promise<AvailableSlot[]> {
   const date = new Date(dateUtc + 'T00:00:00Z');
   if (isNaN(date.getTime())) throw new ValidationError('invalid date format (expected YYYY-MM-DD)');
@@ -102,7 +102,9 @@ export async function createBooking(
 
   const calcomApiKey = process.env['CALCOM_API_KEY'];
   if (calcomApiKey) {
-    calcomBookingId = await createCalcomBooking(calcomApiKey, input, slotStart, slotEnd).catch(() => null);
+    calcomBookingId = await createCalcomBooking(calcomApiKey, input, slotStart, slotEnd).catch(
+      () => null,
+    );
   }
 
   const { rows } = await client.query<Record<string, unknown>>(
@@ -111,9 +113,12 @@ export async function createBooking(
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed')
      RETURNING *`,
     [
-      input.expertId, tc.tenantId,
-      slotStart.toISOString(), slotEnd.toISOString(),
-      input.founderEmail, input.topic,
+      input.expertId,
+      tc.tenantId,
+      slotStart.toISOString(),
+      slotEnd.toISOString(),
+      input.founderEmail,
+      input.topic,
       calcomBookingId,
     ],
   );
@@ -131,7 +136,7 @@ async function createCalcomBooking(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       eventTypeId: process.env['CALCOM_EVENT_TYPE_ID'] ?? 1,
@@ -143,7 +148,7 @@ async function createCalcomBooking(
     }),
   });
   if (!res.ok) throw new Error(`Cal.com API ${res.status}`);
-  const data = await res.json() as { uid: string };
+  const data = (await res.json()) as { uid: string };
   return data.uid;
 }
 

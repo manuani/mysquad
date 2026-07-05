@@ -22,7 +22,13 @@ import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types'
 import type { PostgresClient } from '@voai/db';
 import { buildLedgerRouter } from './routes.js';
 
-export type { ActionRow, ActionState, AssignedTo, CreateActionInput, TransitionActionStateInput } from './actions.js';
+export type {
+  ActionRow,
+  ActionState,
+  AssignedTo,
+  CreateActionInput,
+  TransitionActionStateInput,
+} from './actions.js';
 export {
   createAction,
   getAction,
@@ -58,7 +64,13 @@ export type {
   CreateConflictInput,
   ResolveConflictInput,
 } from './conflicts.js';
-export { acknowledgeConflict, createConflict, getConflict, listUnresolvedConflicts, resolveConflict } from './conflicts.js';
+export {
+  acknowledgeConflict,
+  createConflict,
+  getConflict,
+  listUnresolvedConflicts,
+  resolveConflict,
+} from './conflicts.js';
 
 export type { CurrentlyActiveView } from './currently-active.js';
 export { getCurrentlyActive } from './currently-active.js';

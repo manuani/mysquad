@@ -265,7 +265,10 @@ function buildPerformanceRouter(postgres: PostgresClient): express.Router {
     // Group by persona
     const byPersona = new Map<
       string,
-      { signalAvgs: Partial<Record<SignalType, number>>; signalCounts: Partial<Record<SignalType, number>> }
+      {
+        signalAvgs: Partial<Record<SignalType, number>>;
+        signalCounts: Partial<Record<SignalType, number>>;
+      }
     >();
 
     for (const row of rows) {

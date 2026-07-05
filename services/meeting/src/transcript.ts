@@ -11,7 +11,11 @@
 import type { TenantContext } from '@voai/auth-context';
 import type { PostgresClient } from '@voai/db';
 import { NotFoundError, ValidationError } from '@voai/errors';
-import { assertSessionAcceptsTranscriptEntries, type SessionRow, type SessionStatus } from './sessions.js';
+import {
+  assertSessionAcceptsTranscriptEntries,
+  type SessionRow,
+  type SessionStatus,
+} from './sessions.js';
 
 export type SpeakerType = 'founder' | 'agent';
 
@@ -101,9 +105,10 @@ export async function appendTranscriptEntry(
   if (!input.content) throw new ValidationError('content is required');
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const sessionResult = await client.query<SessionSqlRow>('select * from sessions where id = $1', [
-      input.sessionId,
-    ]);
+    const sessionResult = await client.query<SessionSqlRow>(
+      'select * from sessions where id = $1',
+      [input.sessionId],
+    );
     const sessionRow = sessionResult.rows[0];
     if (!sessionRow) throw new NotFoundError(`session ${input.sessionId} not found`);
     const session = toSession(sessionRow);
@@ -125,7 +130,14 @@ export async function appendTranscriptEntry(
         (tenant_id, session_id, sequence_number, speaker_type, speaker_name, content)
        values ($1, $2, $3, $4, $5, $6)
        returning *`,
-      [tenantContext.tenantId, input.sessionId, nextSeq, input.speakerType, input.speakerName, input.content],
+      [
+        tenantContext.tenantId,
+        input.sessionId,
+        nextSeq,
+        input.speakerType,
+        input.speakerName,
+        input.content,
+      ],
     );
     const row = result.rows[0];
     if (!row) throw new Error('failed to append transcript entry');
@@ -140,7 +152,10 @@ export async function getTranscript(
   sessionId: string,
 ): Promise<TranscriptEntryRow[]> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const sessionResult = await client.query<SessionSqlRow>('select * from sessions where id = $1', [sessionId]);
+    const sessionResult = await client.query<SessionSqlRow>(
+      'select * from sessions where id = $1',
+      [sessionId],
+    );
     if (!sessionResult.rows[0]) throw new NotFoundError(`session ${sessionId} not found`);
 
     const result = await client.query<TranscriptEntrySqlRow>(

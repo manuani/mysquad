@@ -38,7 +38,8 @@ function createFakePostgres(): PostgresClient {
     revoked_at: string | null;
   }[] = [];
   const emailTenantIndex: { email: string; tenant_id: string }[] = [];
-  const authSessionTenantIndex: { token_hash: string; tenant_id: string; expires_at: string }[] = [];
+  const authSessionTenantIndex: { token_hash: string; tenant_id: string; expires_at: string }[] =
+    [];
   let counter = 0;
   const nextId = () => `id-${++counter}`;
 
@@ -48,7 +49,11 @@ function createFakePostgres(): PostgresClient {
         const sql = text.trim().toLowerCase();
 
         if (sql.startsWith('insert into tenants')) {
-          const row = { id: nextId(), name: params[0] as string, created_at: new Date().toISOString() };
+          const row = {
+            id: nextId(),
+            name: params[0] as string,
+            created_at: new Date().toISOString(),
+          };
           tenants.push(row);
           return { rows: [row] as T[] };
         }
@@ -65,13 +70,19 @@ function createFakePostgres(): PostgresClient {
           return { rows: [row] as T[] };
         }
 
-        if (sql.startsWith('select id, tenant_id, email, user_type, created_at from users where email')) {
+        if (
+          sql.startsWith(
+            'select id, tenant_id, email, user_type, created_at from users where email',
+          )
+        ) {
           // RLS-scoped: only rows matching the connection's tenant are visible.
           const row = users.find((u) => u.email === params[0] && u.tenant_id === tenantId);
           return { rows: (row ? [row] : []) as T[] };
         }
 
-        if (sql.startsWith('select id, tenant_id, email, user_type, created_at from users where id')) {
+        if (
+          sql.startsWith('select id, tenant_id, email, user_type, created_at from users where id')
+        ) {
           const row = users.find((u) => u.id === params[0] && u.tenant_id === tenantId);
           return { rows: (row ? [row] : []) as T[] };
         }
@@ -96,7 +107,9 @@ function createFakePostgres(): PostgresClient {
         }
 
         if (sql.startsWith('select id, tenant_id, user_id, expires_at, revoked_at')) {
-          const row = authSessions.find((s) => s.token_hash === params[0] && s.tenant_id === tenantId);
+          const row = authSessions.find(
+            (s) => s.token_hash === params[0] && s.tenant_id === tenantId,
+          );
           return { rows: (row ? [row] : []) as T[] };
         }
 
@@ -106,7 +119,9 @@ function createFakePostgres(): PostgresClient {
         }
 
         if (sql.startsWith('update auth_sessions set revoked_at')) {
-          const row = authSessions.find((s) => s.token_hash === params[0] && s.tenant_id === tenantId);
+          const row = authSessions.find(
+            (s) => s.token_hash === params[0] && s.tenant_id === tenantId,
+          );
           if (row) row.revoked_at = new Date().toISOString();
           return { rows: [] as T[] };
         }
@@ -133,7 +148,9 @@ function createFakePostgres(): PostgresClient {
 
         if (sql.startsWith('select tenant_id, expires_at from auth_session_tenant_index')) {
           const row = authSessionTenantIndex.find((r) => r.token_hash === params[0]);
-          return { rows: (row ? [{ tenant_id: row.tenant_id, expires_at: row.expires_at }] : []) as T[] };
+          return {
+            rows: (row ? [{ tenant_id: row.tenant_id, expires_at: row.expires_at }] : []) as T[],
+          };
         }
 
         if (sql.startsWith('select tenant_id from auth_session_tenant_index')) {
@@ -172,7 +189,9 @@ describe('DevAuthProvider', () => {
 
   it('signUp rejects a duplicate email with ConflictError', async () => {
     await provider.signUp('dup@example.com', 'google');
-    await expect(provider.signUp('dup@example.com', 'google')).rejects.toBeInstanceOf(ConflictError);
+    await expect(provider.signUp('dup@example.com', 'google')).rejects.toBeInstanceOf(
+      ConflictError,
+    );
   });
 
   it('signIn resolves an existing user and issues a fresh session token', async () => {
@@ -185,7 +204,9 @@ describe('DevAuthProvider', () => {
   });
 
   it('signIn throws NotFoundError for an unknown email', async () => {
-    await expect(provider.signIn('nobody@example.com', 'microsoft')).rejects.toBeInstanceOf(NotFoundError);
+    await expect(provider.signIn('nobody@example.com', 'microsoft')).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 
   it('resolveSession returns the session for a valid token', async () => {

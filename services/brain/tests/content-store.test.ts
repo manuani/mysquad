@@ -139,7 +139,9 @@ function createFakePostgres() {
       }
 
       if (sql.includes('from brain_content_audit') && sql.includes('where item_id = $1')) {
-        const rows = audit.filter((a) => a.item_id === params[0]).sort((a, b) => a.changed_at.localeCompare(b.changed_at));
+        const rows = audit
+          .filter((a) => a.item_id === params[0])
+          .sort((a, b) => a.changed_at.localeCompare(b.changed_at));
         return { rows: rows as T[] };
       }
 
@@ -149,7 +151,8 @@ function createFakePostgres() {
           .filter(
             (c) =>
               c.deleted_at === null &&
-              (c.content.toLowerCase().includes(pattern) || (c.content_en ?? '').toLowerCase().includes(pattern)),
+              (c.content.toLowerCase().includes(pattern) ||
+                (c.content_en ?? '').toLowerCase().includes(pattern)),
           )
           .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
         return { rows: rows as T[] };
@@ -271,7 +274,10 @@ describe('brain content store', () => {
 
   it('updating a missing item throws NotFoundError', async () => {
     await expect(
-      updateBrainContentItem(TENANT, postgres, 'missing-id', { content: 'x', source: 'founder_edit' }),
+      updateBrainContentItem(TENANT, postgres, 'missing-id', {
+        content: 'x',
+        source: 'founder_edit',
+      }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
@@ -296,9 +302,9 @@ describe('brain content store', () => {
   });
 
   it('deleting a missing item throws NotFoundError', async () => {
-    await expect(deleteBrainContentItem(TENANT, postgres, 'missing-id', 'founder_edit')).rejects.toBeInstanceOf(
-      NotFoundError,
-    );
+    await expect(
+      deleteBrainContentItem(TENANT, postgres, 'missing-id', 'founder_edit'),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('searches content via ILIKE across domains', async () => {

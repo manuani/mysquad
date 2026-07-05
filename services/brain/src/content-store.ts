@@ -250,7 +250,14 @@ export async function updateBrainContentItem(
     await client.query(
       `insert into brain_content_audit (tenant_id, item_id, changed_by, change_type, source, before_value, after_value)
        values ($1, $2, $3, 'update', $4, $5, $6)`,
-      [tenantContext.tenantId, id, tenantContext.userId, input.source, JSON.stringify(before), JSON.stringify(after)],
+      [
+        tenantContext.tenantId,
+        id,
+        tenantContext.userId,
+        input.source,
+        JSON.stringify(before),
+        JSON.stringify(after),
+      ],
     );
 
     return after;

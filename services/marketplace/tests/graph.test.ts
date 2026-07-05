@@ -15,8 +15,20 @@ const EXPERT: ExpertWithTags = {
   hourlyRateUsdCents: 20000,
   createdAt: new Date().toISOString(),
   domainTags: [
-    { id: 'tag-1', expertId: 'exp-1', domain: 'fintech', confidence: 0.9, createdAt: new Date().toISOString() },
-    { id: 'tag-2', expertId: 'exp-1', domain: 'payments', confidence: 0.8, createdAt: new Date().toISOString() },
+    {
+      id: 'tag-1',
+      expertId: 'exp-1',
+      domain: 'fintech',
+      confidence: 0.9,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'tag-2',
+      expertId: 'exp-1',
+      domain: 'payments',
+      confidence: 0.8,
+      createdAt: new Date().toISOString(),
+    },
   ],
 };
 
@@ -58,11 +70,14 @@ describe('graphMatchExperts', () => {
   });
 
   it('maps records to expertId + graphScore', async () => {
-    const fakeRecords = [
-      { get: (k: string) => k === 'expertId' ? 'exp-1' : 1.7 },
-    ];
+    const fakeRecords = [{ get: (k: string) => (k === 'expertId' ? 'exp-1' : 1.7) }];
     const session = makeSession(vi.fn().mockResolvedValue({ records: fakeRecords }));
-    const result = await graphMatchExperts(TC, { neo4j: makeNeo4j(session) as never }, ['fintech'], 5);
+    const result = await graphMatchExperts(
+      TC,
+      { neo4j: makeNeo4j(session) as never },
+      ['fintech'],
+      5,
+    );
     expect(result).toEqual([{ expertId: 'exp-1', graphScore: 1.7 }]);
   });
 });
@@ -76,7 +91,9 @@ describe('removeExpertFromGraph', () => {
     const runFn = vi.fn().mockResolvedValue({});
     const session = makeSession(runFn);
     await removeExpertFromGraph({ neo4j: makeNeo4j(session) as never }, 'exp-1');
-    expect(runFn).toHaveBeenCalledWith(expect.stringContaining('DETACH DELETE'), { expertId: 'exp-1' });
+    expect(runFn).toHaveBeenCalledWith(expect.stringContaining('DETACH DELETE'), {
+      expertId: 'exp-1',
+    });
     expect(session.close).toHaveBeenCalled();
   });
 });

@@ -37,7 +37,7 @@ the typed service from `@voai/brain` — never reach into internal files.
     `before_value`/`after_value` JSON snapshots. This is what satisfies the
     "founders can view full audit history of every item" requirement.
   - Both tables have `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL
-    SECURITY` + a `tenant_isolation` policy, matching the baseline
+SECURITY` + a `tenant_isolation` policy, matching the baseline
     migration's pattern exactly (see ADR 010 for why `FORCE` is
     load-bearing).
 - **CRUD + search** (`src/content-store.ts`): `createBrainContentItem`,
@@ -45,7 +45,7 @@ the typed service from `@voai/brain` — never reach into internal files.
   `updateBrainContentItem` (writes an audit row with before/after),
   `deleteBrainContentItem` (soft delete + audit row), `searchBrainContent`,
   `getBrainContentHistory`. Every function takes `tenantContext:
-  TenantContext` as its first parameter (ADR 007) and goes through
+TenantContext` as its first parameter (ADR 007) and goes through
   `postgres.withTenant(...)` — no raw queries.
 - **HTTP routes** (`src/routes.ts`), mounted at the module's router root
   (gateway mounts the module at `/v1/brain`):

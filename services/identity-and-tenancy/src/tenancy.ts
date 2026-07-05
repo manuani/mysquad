@@ -176,9 +176,10 @@ export async function getUserInTenant(
   postgres: PostgresClient,
 ): Promise<UserRow | null> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<UserSqlRow>('select id, tenant_id, email, user_type, created_at from users where id = $1', [
-      tenantContext.userId,
-    ]);
+    const result = await client.query<UserSqlRow>(
+      'select id, tenant_id, email, user_type, created_at from users where id = $1',
+      [tenantContext.userId],
+    );
     const row = result.rows[0];
     return row ? toUser(row) : null;
   });

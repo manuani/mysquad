@@ -97,7 +97,9 @@ describe('AgentRuntime', () => {
     });
 
     const runtime = new AgentRuntime(routingService);
-    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, { message: 'just one message' });
+    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
+      message: 'just one message',
+    });
 
     expect(capturedRequest?.messages).toEqual([{ role: 'user', content: 'just one message' }]);
   });
@@ -112,7 +114,10 @@ describe('AgentRuntime', () => {
     const runtime = new AgentRuntime(routingService);
     await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
       message: 'How is runway looking?',
-      brainContext: ['[financial_state] Burn rate is $80k/month', '[company_profile] B2B SaaS, founded 2024'],
+      brainContext: [
+        '[financial_state] Burn rate is $80k/month',
+        '[company_profile] B2B SaaS, founded 2024',
+      ],
     });
 
     expect(capturedRequest?.systemPrompt).toContain(SARAH_CFO_PERSONA.systemPrompt);
@@ -156,11 +161,15 @@ describe('AgentRuntime', () => {
 
       expect(completeSpy).toHaveBeenCalledTimes(3);
       expect(results).toHaveLength(3);
-      expect(results.map((r) => r.persona.name)).toEqual(['Sarah Chen', 'Priya Reddy', 'Marcus Webb']);
+      expect(results.map((r) => r.persona.name)).toEqual([
+        'Sarah Chen',
+        'Priya Reddy',
+        'Marcus Webb',
+      ]);
       expect(results.every((r) => r.contribution !== null && r.error === null)).toBe(true);
     });
 
-    it("tells each persona who their real teammates are, excluding themselves", async () => {
+    it('tells each persona who their real teammates are, excluding themselves', async () => {
       const capturedPrompts: string[] = [];
       const routingService = makeFakeRoutingService(async (request) => {
         capturedPrompts.push(request.systemPrompt);
@@ -183,7 +192,7 @@ describe('AgentRuntime', () => {
       expect(sarahPrompt).not.toContain('Raj');
     });
 
-    it('isolates one persona\'s failure from the others rather than failing the whole roster', async () => {
+    it("isolates one persona's failure from the others rather than failing the whole roster", async () => {
       let callCount = 0;
       const routingService: RoutingService = {
         complete: vi.fn(async () => {
@@ -221,11 +230,24 @@ describe('AgentRuntime', () => {
           if (callCount <= 3) {
             // Gate call: first persona irrelevant, others relevant
             if (callCount === 1) {
-              return { content: '{"shouldRespond":false,"relevanceScore":0.1,"reason":"not a finance topic"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+              return {
+                content:
+                  '{"shouldRespond":false,"relevanceScore":0.1,"reason":"not a finance topic"}',
+                model: 'fake',
+                usage: { inputTokens: 1, outputTokens: 1 },
+              };
             }
-            return { content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"highly relevant"}', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+            return {
+              content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"highly relevant"}',
+              model: 'fake',
+              usage: { inputTokens: 1, outputTokens: 1 },
+            };
           }
-          return { content: 'contribution text', model: 'fake', usage: { inputTokens: 1, outputTokens: 1 } };
+          return {
+            content: 'contribution text',
+            model: 'fake',
+            usage: { inputTokens: 1, outputTokens: 1 },
+          };
         });
 
         const runtime = new AgentRuntime(routingService);

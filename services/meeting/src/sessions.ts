@@ -90,7 +90,9 @@ export async function startSession(
     // value at the schema level (for forward compatibility) but rejecting
     // it at the application layer until that infra exists avoids a later
     // migration just to widen the CHECK constraint.
-    throw new ValidationError(`mode ${mode} is not yet supported; only 'typed' is usable in this deliverable`);
+    throw new ValidationError(
+      `mode ${mode} is not yet supported; only 'typed' is usable in this deliverable`,
+    );
   }
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
@@ -112,7 +114,9 @@ export async function getSession(
   sessionId: string,
 ): Promise<SessionRow | null> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
-    const result = await client.query<SessionSqlRow>('select * from sessions where id = $1', [sessionId]);
+    const result = await client.query<SessionSqlRow>('select * from sessions where id = $1', [
+      sessionId,
+    ]);
     const row = result.rows[0];
     return row ? toSession(row) : null;
   });
@@ -122,7 +126,9 @@ async function requireSessionRow(
   client: { query<T = unknown>(text: string, params?: unknown[]): Promise<{ rows: T[] }> },
   sessionId: string,
 ): Promise<SessionSqlRow> {
-  const result = await client.query<SessionSqlRow>('select * from sessions where id = $1', [sessionId]);
+  const result = await client.query<SessionSqlRow>('select * from sessions where id = $1', [
+    sessionId,
+  ]);
   const row = result.rows[0];
   if (!row) throw new NotFoundError(`session ${sessionId} not found`);
   return row;
