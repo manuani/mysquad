@@ -5,7 +5,7 @@
  *   1. Founder audio → Deepgram STT → transcript text
  *   2. Transcript text → agent-runtime /contributions/roster (with sessionId)
  *   3. Each contribution text → ElevenLabs TTS → audio buffer
- *   4. Audio buffer returned to caller (LiveKit track publish or HTTP stream)
+ *   4. Audio buffer → LiveKit URL ingress → published as room track
  *
  * This module is stateless — one PipelineSession per meeting session.
  * The media-coordinator routes create and hold PipelineSessions.
@@ -13,6 +13,7 @@
 
 import type { SttClient, SttSession } from './stt.js';
 import type { TtsClient } from './tts.js';
+import type { WhipPublisher } from './whip-publisher.js';
 import { voiceForPersona } from './voice-personas.js';
 
 export interface PipelineContribution {
@@ -21,6 +22,8 @@ export interface PipelineContribution {
   readonly text: string;
   readonly audio: Buffer | null;
   readonly rank: number;
+  /** LiveKit ingress ID, set when audio was published to the room. Null when LiveKit is not configured. */
+  readonly ingressId: string | null;
 }
 
 export interface PipelineSession {
@@ -39,6 +42,10 @@ export interface PipelineOptions {
   readonly onContributions: (contributions: PipelineContribution[]) => void;
   readonly onTranscriptChunk: (text: string, isFinal: boolean) => void;
   readonly onError: (err: Error) => void;
+  /** When provided, each TTS buffer is published into the LiveKit room. */
+  readonly livekitRoomName?: string;
+  readonly publisher?: WhipPublisher;
+  readonly selfBaseUrl?: string;
 }
 
 export function createPipelineSession(
@@ -83,12 +90,32 @@ export function createPipelineSession(
               ? await tts.synthesise(c.contribution.content, voice.elevenLabsVoiceId)
               : null;
 
+            // Publish audio into the LiveKit room when all three are configured.
+            let ingressId: string | null = null;
+            if (audio && opts.publisher && opts.livekitRoomName && opts.selfBaseUrl) {
+              try {
+                ingressId = await opts.publisher.publishAudio({
+                  roomName: opts.livekitRoomName,
+                  participantIdentity: voice?.personaId ?? c.agentName.toLowerCase().replace(/\s+/g, '-'),
+                  participantName: c.agentName,
+                  audioBuffer: audio,
+                  selfBaseUrl: opts.selfBaseUrl,
+                });
+              } catch (publishErr) {
+                // Non-fatal — text contribution still delivered; caller gets audio buffer too.
+                opts.onError(
+                  publishErr instanceof Error ? publishErr : new Error(String(publishErr)),
+                );
+              }
+            }
+
             return {
               agentName: c.agentName,
               role: c.role,
               text: c.contribution.content,
               audio,
               rank: c.rank,
+              ingressId,
             };
           }),
       );
