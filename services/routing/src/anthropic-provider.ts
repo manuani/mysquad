@@ -58,7 +58,10 @@ export class AnthropicProvider implements LlmProvider {
       );
     }
 
-    const client = new Anthropic({ apiKey: this.apiKey });
+    const headers: Record<string, string> = {};
+    if (request.requestId) headers['x-request-id'] = request.requestId;
+
+    const client = new Anthropic({ apiKey: this.apiKey, defaultHeaders: headers });
 
     const response = await client.messages.create({
       model: this.model,

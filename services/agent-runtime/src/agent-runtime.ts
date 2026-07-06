@@ -61,6 +61,8 @@ export interface AgentContributionInput {
    * answer quality for the "meeting with a team" claim to hold up.
    */
   readonly teammates?: readonly Pick<AgentPersona, 'name' | 'role'>[];
+  /** Forwarded to every routing/provider call for end-to-end tracing. */
+  readonly requestId?: string;
 }
 
 /**
@@ -121,6 +123,7 @@ export class AgentRuntime {
     persona: AgentPersona,
     message: string,
     priorTurns?: readonly ConversationTurn[],
+    requestId?: string,
   ): Promise<ResponseGateResult> {
     const recentContext =
       priorTurns && priorTurns.length > 0
@@ -144,6 +147,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
         systemPrompt: 'You are a relevance classifier. Output only valid JSON.',
         messages: [{ role: 'user', content: gatePrompt }],
         maxTokens: 80,
+        requestId,
       });
 
       const parsed = JSON.parse(result.content.trim()) as {
@@ -189,6 +193,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
     const result = await this.routingService.complete(tenantContext, {
       systemPrompt: assembleSystemPrompt(persona, input.brainContext, input.teammates),
       messages,
+      requestId: input.requestId,
     });
 
     return {
@@ -340,7 +345,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       ? personas.map(() => ({ shouldRespond: true, relevanceScore: 1.0, reason: 'gate skipped' }))
       : await Promise.all(
           personas.map((p) =>
-            this.checkShouldRespond(tenantContext, p, input.message, input.priorTurns),
+            this.checkShouldRespond(tenantContext, p, input.message, input.priorTurns, input.requestId),
           ),
         );
 
@@ -423,6 +428,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       message: string;
       priorTurns?: readonly ConversationTurn[];
       contributionsSoFar: string[];
+      requestId?: string;
     },
     sessionId: string,
     events: EventBus,
@@ -449,6 +455,7 @@ Respond with ONLY valid JSON:
           systemPrompt: 'You are a relevance classifier. Output only valid JSON.',
           messages: [{ role: 'user', content: observerPrompt }],
           maxTokens: 80,
+          requestId: input.requestId,
         });
 
         let gate: ResponseGateResult;

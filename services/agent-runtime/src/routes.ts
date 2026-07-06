@@ -93,9 +93,11 @@ export function buildAgentRuntimeRouter(
         return [];
       });
 
+      const requestId = (res.locals['requestId'] as string | undefined) ?? undefined;
       const contribution = await runtime.generateContribution(tenantContext, SARAH_CFO_PERSONA, {
         message: body.message,
         brainContext,
+        requestId,
       });
 
       res.status(200).json(contribution);
@@ -130,10 +132,11 @@ export function buildAgentRuntimeRouter(
         return [];
       });
 
+      const requestId = (res.locals['requestId'] as string | undefined) ?? undefined;
       const { ordered, skipped } = await runtime.generateOrderedContributions(
         tenantContext,
         ROSTER,
-        { message: body.message, brainContext },
+        { message: body.message, brainContext, requestId },
       );
 
       res.status(200).json({
@@ -156,7 +159,7 @@ export function buildAgentRuntimeRouter(
           .observeSkippedPersonas(
             tenantContext,
             skipped,
-            { message: body.message, contributionsSoFar },
+            { message: body.message, contributionsSoFar, requestId },
             sessionId,
             events,
           )
