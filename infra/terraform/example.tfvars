@@ -18,5 +18,5 @@ project_name = "voai"
 # anthropic_api_key      = ""
 
 # --- Alerting (alerts.tf) -------------------------------------------------- ---
-# alert_email        = "oncall@example.com"   # receives SNS email on alarm
+# alert_email        = "smdharan@gmail.com"    # receives SNS email on alarm (default)
 # pagerduty_endpoint = ""                      # PagerDuty Events API v2 HTTPS URL

@@ -19,7 +19,7 @@
 variable "alert_email" {
   description = "Email address for CloudWatch alarm notifications. Leave empty to skip the email subscription."
   type        = string
-  default     = ""
+  default     = "smdharan@gmail.com"
 }
 
 variable "pagerduty_endpoint" {
