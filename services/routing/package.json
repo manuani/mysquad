@@ -22,17 +22,19 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0",
-    "@types/express": "^4.17.21"
+    "vitest": "^2.0.0"
   },
   "dependencies": {
-    "@voai/types": "workspace:*",
-    "@voai/telemetry": "workspace:*",
-    "@voai/errors": "workspace:*",
-    "@voai/config": "workspace:*",
-    "@voai/auth-context": "workspace:*",
     "@anthropic-ai/sdk": "^0.32.0",
-    "express": "^4.21.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.1079.0",
+    "@voai/auth-context": "workspace:*",
+    "@voai/config": "workspace:*",
+    "@voai/errors": "workspace:*",
+    "@voai/telemetry": "workspace:*",
+    "@voai/types": "workspace:*",
+    "express": "^4.21.0",
+    "openai": "^6.45.0"
   }
 }
