@@ -42,7 +42,10 @@ export class OpenAIProvider implements LlmProvider {
       );
     }
 
-    const client = new OpenAI({ apiKey: this.apiKey });
+    const client = new OpenAI({
+      apiKey: this.apiKey,
+      defaultHeaders: request.requestId ? { 'x-request-id': request.requestId } : {},
+    });
 
     const response = await client.chat.completions.create({
       model: this.model,

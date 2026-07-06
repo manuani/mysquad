@@ -42,6 +42,8 @@ export interface LlmCompletionRequest {
   readonly systemPrompt: string;
   readonly messages: readonly LlmMessage[];
   readonly maxTokens?: number;
+  /** Propagated as X-Request-Id on outbound provider calls for end-to-end tracing. */
+  readonly requestId?: string;
 }
 
 export interface LlmUsage {

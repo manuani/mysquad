@@ -2,11 +2,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { isPlatformError } from '@voai/errors';
 
 const createMock = vi.fn();
+const constructorArgs: unknown[] = [];
 
 vi.mock('@anthropic-ai/sdk', () => {
   return {
     default: class Anthropic {
       messages = { create: createMock };
+      constructor(opts: unknown) {
+        constructorArgs.push(opts);
+      }
     },
   };
 });
@@ -17,6 +21,7 @@ const { AnthropicProvider } = await import('../src/anthropic-provider.js');
 describe('AnthropicProvider', () => {
   beforeEach(() => {
     createMock.mockReset();
+    constructorArgs.length = 0;
   });
 
   it('fails clearly when no API key is configured, without making a network call', async () => {
@@ -82,5 +87,23 @@ describe('AnthropicProvider', () => {
     });
 
     expect(result.content).toBe('part one part two');
+  });
+
+  it('forwards requestId as x-request-id default header', async () => {
+    createMock.mockResolvedValue({
+      model: 'claude-sonnet-4-5',
+      content: [{ type: 'text', text: 'ok' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+
+    const provider = new AnthropicProvider('test-key');
+    await provider.complete({
+      systemPrompt: 'sys',
+      messages: [{ role: 'user', content: 'hi' }],
+      requestId: 'trace-abc-123',
+    });
+
+    const opts = constructorArgs[constructorArgs.length - 1] as Record<string, unknown>;
+    expect((opts['defaultHeaders'] as Record<string, string>)['x-request-id']).toBe('trace-abc-123');
   });
 });
