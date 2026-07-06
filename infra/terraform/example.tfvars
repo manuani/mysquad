@@ -16,3 +16,7 @@ project_name = "voai"
 # neo4j_aura_uri         = ""
 # neo4j_aura_password    = ""
 # anthropic_api_key      = ""
+
+# --- Alerting (alerts.tf) -------------------------------------------------- ---
+# alert_email        = "oncall@example.com"   # receives SNS email on alarm
+# pagerduty_endpoint = ""                      # PagerDuty Events API v2 HTTPS URL

@@ -220,9 +220,9 @@ ROWS = [
     ("P4", "S14 — Production Environment", "Infra", "CloudFront CDN in front of ALB", "Deferred", "Infra", ""),
     ("P4", "S14 — Production Environment", "Infra", "WAF rules on ALB", "Deferred", "Infra", ""),
 
-    ("P4", "S15 — Observability", "Monitoring", "CloudWatch dashboards: ECS CPU/mem, RDS connections, ALB latency", "Deferred", "Infra", ""),
-    ("P4", "S15 — Observability", "Monitoring", "PagerDuty / SNS alerts on 5xx rate, task failures", "Deferred", "Infra", ""),
-    ("P4", "S15 — Observability", "Monitoring", "Structured log search (CloudWatch Insights or Datadog)", "Deferred", "Infra", ""),
+    ("P4", "S15 — Observability", "Monitoring", "CloudWatch dashboards: ECS CPU/mem, RDS connections, ALB latency", "Done", "Infra", "sprint30: infra/terraform/cloudwatch.tf — 4-row dashboard; ECS CPU/mem, RDS connections, ALB 5xx/latency, Insights widget"),
+    ("P4", "S15 — Observability", "Monitoring", "PagerDuty / SNS alerts on 5xx rate, task failures", "Done", "Infra", "sprint30: infra/terraform/alerts.tf — SNS topic + email/PD subs; 4 alarms: 5xx rate, task count, CPU, RDS connections"),
+    ("P4", "S15 — Observability", "Monitoring", "Structured log search (CloudWatch Insights or Datadog)", "Done", "Infra", "sprint30: CloudWatch Insights query widget in dashboard; log group /ecs/voai-staging-api-server"),
     ("P4", "S15 — Observability", "Monitoring", "Distributed trace IDs through routing + agent calls", "Done", "Engineering", "sprint29: requestId threaded LlmCompletionRequest→provider X-Request-Id header; agent-runtime routes"),
 
     ("P4", "S16 — Multi-provider LLM Routing", "routing", "Four-tier LLM classification: Advanced / High / Good / OpenSource", "Done", "Engineering", "sprint27: ProviderTier; PLAN_TO_TIERS; enterprise→all 4, growth→skip advanced, starter→good+opensource"),
