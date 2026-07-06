@@ -187,4 +187,105 @@ describe('createPipelineSession', () => {
 
     vi.unstubAllGlobals();
   });
+
+  it('calls publisher.publishAudio for each contribution when livekitRoomName is set', async () => {
+    const onContributions = vi.fn();
+    let emitFn!: (text: string, isFinal: boolean) => void;
+    const stt = makeStt((e) => { emitFn = e; });
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        contributions: [
+          { agentName: 'Sarah Chen', role: 'CFO', contribution: { content: 'runway is 6 months' }, rank: 1, skipped: false },
+        ],
+      }),
+    }));
+
+    const publishAudio = vi.fn().mockResolvedValue('ingress-123');
+    const publisher = { publishAudio };
+
+    createPipelineSession(stt, makeTts(), makeOpts({
+      onContributions,
+      livekitRoomName: 'room-abc',
+      publisher,
+      selfBaseUrl: 'http://mc.example.com',
+    }));
+
+    emitFn('what is our runway', true);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(publishAudio).toHaveBeenCalledWith(expect.objectContaining({
+      roomName: 'room-abc',
+      participantName: 'Sarah Chen',
+      selfBaseUrl: 'http://mc.example.com',
+    }));
+
+    const [batch] = onContributions.mock.calls[0] as [ReturnType<typeof onContributions.mock.calls>[0]];
+    expect(batch[0].ingressId).toBe('ingress-123');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('delivers contribution even when publishAudio throws (non-fatal)', async () => {
+    const onContributions = vi.fn();
+    const onError = vi.fn();
+    let emitFn!: (text: string, isFinal: boolean) => void;
+    const stt = makeStt((e) => { emitFn = e; });
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        contributions: [
+          { agentName: 'Sarah Chen', role: 'CFO', contribution: { content: 'reply' }, rank: 1, skipped: false },
+        ],
+      }),
+    }));
+
+    const publisher = { publishAudio: vi.fn().mockRejectedValue(new Error('LiveKit down')) };
+
+    createPipelineSession(stt, makeTts(), makeOpts({
+      onContributions,
+      onError,
+      livekitRoomName: 'room-abc',
+      publisher,
+      selfBaseUrl: 'http://mc.example.com',
+    }));
+
+    emitFn('question', true);
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Contribution still delivered with ingressId null
+    expect(onContributions).toHaveBeenCalled();
+    const [batch] = onContributions.mock.calls[0] as [ReturnType<typeof onContributions.mock.calls>[0]];
+    expect(batch[0].ingressId).toBeNull();
+    // Error reported non-fatally
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'LiveKit down' }));
+
+    vi.unstubAllGlobals();
+  });
+
+  it('sets ingressId to null when no publisher configured', async () => {
+    const onContributions = vi.fn();
+    let emitFn!: (text: string, isFinal: boolean) => void;
+    const stt = makeStt((e) => { emitFn = e; });
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        contributions: [
+          { agentName: 'Sarah Chen', role: 'CFO', contribution: { content: 'reply' }, rank: 1, skipped: false },
+        ],
+      }),
+    }));
+
+    createPipelineSession(stt, makeTts(), makeOpts({ onContributions }));
+    emitFn('question', true);
+
+    await new Promise((r) => setTimeout(r, 50));
+    const [batch] = onContributions.mock.calls[0] as [ReturnType<typeof onContributions.mock.calls>[0]];
+    expect(batch[0].ingressId).toBeNull();
+
+    vi.unstubAllGlobals();
+  });
 });

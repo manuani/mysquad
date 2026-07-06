@@ -19,6 +19,7 @@ import { createLogger } from '@voai/telemetry';
 import { loadVoiceConfig } from './voice-config.js';
 import { createSttClient } from './stt.js';
 import { createTtsClient } from './tts.js';
+import { createWhipPublisher } from './whip-publisher.js';
 import {
   createPipelineSession,
   type PipelineContribution,
@@ -38,6 +39,7 @@ interface SessionState {
   readonly pipeline: PipelineSession;
   readonly contributions: PipelineContribution[][];
   readonly transcriptChunks: Array<{ text: string; isFinal: boolean; at: string }>;
+  readonly livekitRoomName: string | undefined;
 }
 
 const sessions = new Map<string, SessionState>();
@@ -45,6 +47,19 @@ const sessions = new Map<string, SessionState>();
 const app = express();
 app.use(express.raw({ type: 'application/octet-stream', limit: '1mb' }));
 app.use(express.json({ limit: '256kb' }));
+
+// Publisher is created once and shared — the router reference lets it register
+// one-shot audio-serve routes dynamically per TTS buffer.
+const publisher =
+  config.livekitUrl && config.livekitApiKey && config.livekitApiSecret
+    ? createWhipPublisher({
+        livekitUrl: config.livekitUrl,
+        livekitApiKey: config.livekitApiKey,
+        livekitApiSecret: config.livekitApiSecret,
+        router: app,
+        log,
+      })
+    : undefined;
 
 app.get('/healthz', (_req: Request, res: Response) => {
   res.json({
@@ -65,11 +80,17 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
     return;
   }
 
-  const body = req.body as { tenantId?: string; userId?: string; sessionToken?: string };
+  const body = req.body as {
+    tenantId?: string;
+    userId?: string;
+    sessionToken?: string;
+    livekitRoomName?: string;
+  };
   if (!body.tenantId || !body.userId || !body.sessionToken) {
     res.status(400).json({ error: 'tenantId, userId, sessionToken required' });
     return;
   }
+  const livekitRoomName = typeof body.livekitRoomName === 'string' ? body.livekitRoomName : undefined;
 
   const authHeaders = {
     'x-tenant-id': body.tenantId,
@@ -85,9 +106,16 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
       userId: body.userId,
       apiServerUrl: config.apiServerUrl,
       authHeaders,
+      livekitRoomName,
+      publisher,
+      selfBaseUrl: config.selfBaseUrl,
       onContributions: (contributions) => {
         (state.contributions as PipelineContribution[][]).push(contributions);
-        log.info('contributions generated', { sessionId, count: contributions.length });
+        log.info('contributions generated', {
+          sessionId,
+          count: contributions.length,
+          published: contributions.filter((c) => c.ingressId).length,
+        });
       },
       onTranscriptChunk: (text, isFinal) => {
         (state.transcriptChunks as Array<{ text: string; isFinal: boolean; at: string }>).push({
@@ -102,6 +130,7 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
     }),
     contributions: [],
     transcriptChunks: [],
+    livekitRoomName,
   };
 
   sessions.set(sessionId, state);
@@ -137,6 +166,7 @@ app.get('/sessions/:id/status', (req: Request, res: Response) => {
   res.json({
     sessionId,
     status: 'active',
+    livekitRoomName: state.livekitRoomName ?? null,
     contributionBatches: state.contributions.length,
     transcriptChunks: state.transcriptChunks.length,
     recentTranscript: state.transcriptChunks.slice(-5),

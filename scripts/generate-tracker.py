@@ -149,7 +149,7 @@ ROWS = [
     ("P2", "S8 — Voice Pipeline", "media-coordinator", "Audio pipeline coordinator: receive STT transcript chunks", "Done", "Engineering", "apps/media-coordinator Express service on port 3001"),
     ("P2", "S8 — Voice Pipeline", "media-coordinator", "Route transcript chunks to agent-runtime", "Done", "Engineering", "pipeline.ts: STT → /v1/agent-runtime/contributions/roster"),
     ("P2", "S8 — Voice Pipeline", "media-coordinator", "Receive agent text response → send to ElevenLabs TTS", "Done", "Engineering", "tts.ts createTtsClient; graceful no-op when key absent"),
-    ("P2", "S8 — Voice Pipeline", "media-coordinator", "Play TTS audio back into LiveKit room track", "Pending", "Engineering", "Needs LiveKit Node SDK room join — deferred to native app"),
+    ("P2", "S8 — Voice Pipeline", "media-coordinator", "Play TTS audio back into LiveKit room track", "Done", "Engineering", "sprint31: URL Ingress approach — media-coordinator serves MP3 one-shot HTTP endpoint; LiveKit pulls via IngressClient.createIngress(URL_INPUT)"),
     ("P2", "S8 — Voice Pipeline", "meeting", "LiveKit token generation endpoint (founder joins audio room)", "Done", "Engineering", "POST /sessions/:id/voice-token → AccessToken JWT"),
     ("P2", "S8 — Voice Pipeline", "Demo UI", "MediaRecorder audio → media-coordinator (no LiveKit browser SDK)", "Done", "Product", "250ms chunks; polls /status every 800ms"),
     ("P2", "S8 — Voice Pipeline", "Demo UI", "Real-time transcript display (live chunk preview)", "Done", "Product", "transcript-chunk div updated on each 800ms poll"),
