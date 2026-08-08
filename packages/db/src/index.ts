@@ -59,6 +59,13 @@ export interface PostgresClient {
    * any route handler is invoked.
    */
   adminQuery<T = unknown>(text: string, params?: unknown[]): Promise<T[]>;
+
+  /**
+   * Liveness probe for health checks. Resolves when the store is reachable
+   * and rejects otherwise — never swallows the failure, because a probe that
+   * cannot fail reports healthy during an outage.
+   */
+  ping(): Promise<void>;
 }
 
 /**
@@ -73,6 +80,8 @@ export interface TenantScopedClient {
 export interface Neo4jClient {
   // neo4j-driver Driver surface — pinned in Sprint 1.1.2
   session(): Neo4jSession;
+  /** Liveness probe for health checks. Rejects when the store is unreachable. */
+  ping(): Promise<void>;
 }
 
 export interface Neo4jSession {
@@ -85,6 +94,8 @@ export interface RedisClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode?: 'EX', ttlSeconds?: number): Promise<unknown>;
   del(key: string): Promise<number>;
+  /** Liveness probe for health checks. Rejects when the store is unreachable. */
+  ping(): Promise<void>;
 }
 
 /**
@@ -157,3 +168,5 @@ export function createDatabaseClients(config: DatabaseConfig): DatabaseClients {
     },
   };
 }
+
+export { checkDependencies, type HealthDependencies } from './health.js';

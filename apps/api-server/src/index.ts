@@ -196,10 +196,33 @@ async function main(): Promise<void> {
 
   app.get('/healthz', async (_req, res) => {
     const results = await Promise.all(
-      handles.map(async (h) => ({ module: h.name, ...(await h.health()) })),
+      handles.map(async (h) => {
+        // A module whose health check throws is not healthy. Without this the
+        // rejection escapes Promise.all and /healthz 500s with no detail about
+        // which module failed.
+        try {
+          return { module: h.name, ...(await h.health()) };
+        } catch (err) {
+          return {
+            module: h.name,
+            status: 'unhealthy' as const,
+            reason: `health check threw: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+      }),
     );
-    const overall = results.every((r) => r.status === 'healthy') ? 'healthy' : 'degraded';
-    res.json({ status: overall, modules: results });
+
+    // 'degraded' means reduced capability but still serving, so it stays 200 —
+    // only 'unhealthy' returns 503, or a load balancer would pull the task out
+    // of rotation over a missing optional dependency.
+    const unhealthy = results.some((r) => r.status === 'unhealthy');
+    const overall = unhealthy
+      ? 'unhealthy'
+      : results.every((r) => r.status === 'healthy')
+        ? 'healthy'
+        : 'degraded';
+
+    res.status(unhealthy ? 503 : 200).json({ status: overall, modules: results });
   });
 
   const server = app.listen(config.port, () => {

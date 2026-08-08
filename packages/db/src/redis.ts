@@ -31,6 +31,9 @@ export function createRedisClient(redisUrl: string): {
         ? redis.set(key, value, mode, ttlSeconds)
         : redis.set(key, value),
     del: (key) => redis.del(key),
+    // With lazyConnect the socket opens on this first command, so a PING that
+    // resolves means the server genuinely answered.
+    ping: () => redis.ping().then(() => undefined),
   };
 
   return { client, close: () => redis.quit().then(() => undefined) };

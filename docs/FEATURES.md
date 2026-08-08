@@ -222,8 +222,23 @@ node apps/media-coordinator/scripts/verify-voice-pipeline.mjs
 | # | Feature | Endpoint |
 |---|---------|----------|
 | 12.1 | Health check (all modules) | `GET /healthz` |
+| 12.7 | Per-module health check | `GET /v1/:module/healthz` |
 | 12.2 | Demo Web UI | `GET /demo` (browser) |
 | 12.3 | Admin Web UI | `GET /admin` (browser) |
 | 12.4 | Rate limiting | Built-in — 1000/15min global, 20/15min auth, 100/min metering |
 | 12.5 | Audit log | Automatic — every write recorded with actor + timestamp |
 | 12.6 | Distributed trace IDs | `x-request-id` header on every response |
+
+**Health check semantics** — `/healthz` probes real dependencies rather than
+returning a constant, so it can actually fail:
+
+| Status | HTTP | Meaning |
+|--------|------|---------|
+| `healthy` | 200 | Every dependency answered |
+| `degraded` | 200 | Reduced capability, still serving — e.g. no LLM failover configured, or Neo4j down so expert *matching* is unavailable while listing still works |
+| `unhealthy` | 503 | A required dependency is unreachable; the response `reason` names which one |
+
+`degraded` stays 200 deliberately: a load balancer should not pull a task out of
+rotation over a missing optional dependency. Probes are capped at 2s each, so a
+store that accepts connections but never answers fails the check instead of
+hanging it.

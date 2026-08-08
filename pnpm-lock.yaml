@@ -284,6 +284,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1075.0
         version: 3.1075.0
+      '@voai/types':
+        specifier: workspace:*
+        version: link:../types
       ioredis:
         specifier: 5.10.1
         version: 5.10.1

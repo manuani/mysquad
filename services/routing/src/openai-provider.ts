@@ -22,12 +22,14 @@ import { computeCostMicro } from './provider.js';
 export class OpenAIProvider implements LlmProvider {
   readonly id = 'openai';
   readonly tier: ProviderTier;
+  readonly isConfigured: boolean;
 
   private readonly apiKey: string | undefined;
   private readonly model: string;
 
   constructor(apiKey: string | undefined, model = 'gpt-4o-mini', tier: ProviderTier = 'good') {
     this.apiKey = apiKey;
+    this.isConfigured = Boolean(apiKey);
     this.model = model;
     this.tier = tier;
   }

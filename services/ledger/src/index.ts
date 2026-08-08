@@ -20,6 +20,7 @@
 import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildLedgerRouter } from './routes.js';
 
 export type {
@@ -91,8 +92,9 @@ export const ledgerModule: ModuleDefinition = {
     const router = express.Router();
     router.use(buildLedgerRouter(postgres));
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'ledger', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'ledger', ...health });
     });
 
     log.info('module registered');
@@ -100,7 +102,7 @@ export const ledgerModule: ModuleDefinition = {
     return {
       name: 'ledger',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

@@ -23,6 +23,7 @@
 
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { DevAuthProvider } from './dev-auth-provider.js';
 import { buildIdentityAndTenancyRouter } from './routes.js';
 
@@ -52,8 +53,9 @@ export const identityAndTenancyModule: ModuleDefinition = {
 
     const router = buildIdentityAndTenancyRouter(authProvider, log, postgres);
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'identity-and-tenancy', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'identity-and-tenancy', ...health });
     });
 
     log.info('module registered');
@@ -61,7 +63,7 @@ export const identityAndTenancyModule: ModuleDefinition = {
     return {
       name: 'identity-and-tenancy',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

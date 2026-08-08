@@ -18,6 +18,7 @@
 
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildBrainRouter } from './routes.js';
 
 export { BRAIN_DOMAINS, BRAIN_SOURCES, isBrainDomain, isBrainSource } from './domains.js';
@@ -49,8 +50,9 @@ export const brainModule: ModuleDefinition = {
 
     const router = buildBrainRouter(postgres);
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'brain', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'brain', ...health });
     });
 
     log.info('module registered');
@@ -58,7 +60,7 @@ export const brainModule: ModuleDefinition = {
     return {
       name: 'brain',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

@@ -75,9 +75,33 @@ const publisher =
       })
     : undefined;
 
-app.get('/healthz', (_req: Request, res: Response) => {
-  res.json({
-    status: 'healthy',
+app.get('/healthz', async (_req: Request, res: Response) => {
+  // Report what is actually true rather than a constant 'healthy'. The
+  // api-server is a hard dependency — without it a transcript can never reach
+  // an advisor — so it is probed for real. Missing STT/TTS credentials leave
+  // the process able to hold rooms but unable to hear or speak, which is
+  // degraded rather than dead.
+  const reasons: string[] = [];
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2_000);
+    try {
+      const upstream = await fetch(`${config.apiServerUrl}/healthz`, { signal: controller.signal });
+      if (!upstream.ok) reasons.push(`api-server returned ${upstream.status}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (err) {
+    reasons.push(`api-server unreachable: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const status = reasons.length > 0 ? 'unhealthy' : config.isVoiceReady ? 'healthy' : 'degraded';
+  if (status === 'degraded') reasons.push('voice credentials not configured — STT/TTS are no-ops');
+
+  res.status(status === 'unhealthy' ? 503 : 200).json({
+    status,
+    ...(reasons.length > 0 ? { reason: reasons.join('; ') } : {}),
     voiceReady: config.isVoiceReady,
     activeSessions: sessions.size,
   });

@@ -13,6 +13,7 @@
 import express, { type Request, type Response } from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient, TenantScopedClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildTenantContext, type TenantContext } from '@voai/auth-context';
 import {
   SIGNAL_TYPES,
@@ -337,7 +338,7 @@ export const performanceModule: ModuleDefinition = {
     return {
       name: 'performance',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },
