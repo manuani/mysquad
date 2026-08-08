@@ -26,6 +26,12 @@ export function createPostgresClient(databaseUrl: string): {
   // CA verification — traffic stays private inside the VPC, so this is safe.
   const ssl = databaseUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined;
   const pool = new Pool({ connectionString: databaseUrl, ssl });
+  // Separate pool for cross-tenant admin queries — uses BYPASSRLS superuser.
+  // Falls back to the app pool if not configured (dev environments where
+  // voai_app is also superuser or RLS is not enforced for the user role).
+  const adminUrl = process.env['ADMIN_DATABASE_URL'] ?? process.env['MIGRATIONS_DATABASE_URL'] ?? databaseUrl;
+  const adminSsl = adminUrl.includes('rds.amazonaws.com') ? { rejectUnauthorized: false } : undefined;
+  const adminPool = new Pool({ connectionString: adminUrl, ssl: adminSsl });
 
   const client: PostgresClient = {
     async withTenant<T>(
@@ -59,14 +65,10 @@ export function createPostgresClient(databaseUrl: string): {
     },
 
     async adminQuery<R = unknown>(text: string, params?: unknown[]): Promise<R[]> {
-      // Runs on a pool connection without setting app.tenant_id so voai_admin
-      // (which BYPASSRLS) can read across all tenants. Only admin-console-api
-      // calls this. The pool itself uses the admin connection string when the
-      // ADMIN_DATABASE_URL env var is set; falls back to databaseUrl otherwise.
-      const result = await pool.query(text, params as unknown[]);
+      const result = await adminPool.query(text, params as unknown[]);
       return result.rows as R[];
     },
   };
 
-  return { client, close: () => pool.end() };
+  return { client, close: () => Promise.all([pool.end(), adminPool.end()]).then(() => undefined) };
 }

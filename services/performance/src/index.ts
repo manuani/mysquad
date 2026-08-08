@@ -13,7 +13,7 @@
 import express, { type Request, type Response } from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient, TenantScopedClient } from '@voai/db';
-import type { TenantContext } from '@voai/auth-context';
+import { buildTenantContext, type TenantContext } from '@voai/auth-context';
 import {
   SIGNAL_TYPES,
   isSignalType,
@@ -127,10 +127,19 @@ async function weeklyAggregates(
 // ---------------------------------------------------------------------------
 
 function extractTenantContext(req: Request): TenantContext | null {
-  // The api-server gateway attaches the validated TenantContext to the request.
-  // Cast via unknown to avoid a direct dependency on an untyped property.
+  // Support both gateway-attached context and direct x-* header auth
   const tc = (req as unknown as { tenantContext?: TenantContext }).tenantContext;
-  return tc ?? null;
+  if (tc) return tc;
+  const tenantId = req.header('x-tenant-id');
+  const userId = req.header('x-user-id');
+  const userType = req.header('x-user-type');
+  const sessionId = req.header('x-session-id');
+  if (!tenantId || !userId || !userType || !sessionId) return null;
+  try {
+    return buildTenantContext({ tenantId, userId, userType, sessionId });
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

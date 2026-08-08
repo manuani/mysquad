@@ -19,6 +19,7 @@ import { isPlatformError, ValidationError } from '@voai/errors';
 import type { RoutingService } from '@voai/routing';
 import type { EventBus, Logger } from '@voai/types';
 import { matchExperts } from '@voai/marketplace';
+import { recordMeteringEvent } from '@voai/marketplace-metering';
 import { AgentRuntime } from './agent-runtime.js';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
@@ -100,6 +101,16 @@ export function buildAgentRuntimeRouter(
         requestId,
       });
 
+      postgres
+        .withTenant(tenantContext.tenantId, (client) =>
+          recordMeteringEvent(tenantContext, client, {
+            eventType: 'ai_roster_call',
+            quantity: 1,
+            metadata: { agents: 1 },
+          }),
+        )
+        .catch((err: unknown) => log.warn('metering record failed', { err: String(err) }));
+
       res.status(200).json(contribution);
     } catch (err) {
       handleError(err, res, log);
@@ -138,6 +149,16 @@ export function buildAgentRuntimeRouter(
         ROSTER,
         { message: body.message, brainContext, requestId },
       );
+
+      postgres
+        .withTenant(tenantContext.tenantId, (client) =>
+          recordMeteringEvent(tenantContext, client, {
+            eventType: 'ai_roster_call',
+            quantity: 1,
+            metadata: { agents: ordered.length },
+          }),
+        )
+        .catch((err: unknown) => log.warn('metering record failed', { err: String(err) }));
 
       res.status(200).json({
         contributions: ordered.map((r) => ({

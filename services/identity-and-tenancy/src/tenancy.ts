@@ -182,19 +182,19 @@ export async function deleteTenantData(
 ): Promise<void> {
   const { tenantId } = tenantContext;
 
-  // Delete RLS-protected tables while scoped to the tenant
+  // Delete cross-tenant index tables first (no RLS, but FK references tenants)
+  await postgres.withTenant(SYSTEM_TENANT, async (client) => {
+    await client.query('DELETE FROM email_tenant_index WHERE tenant_id = $1', [tenantId]);
+    await client.query('DELETE FROM auth_session_tenant_index WHERE tenant_id = $1', [tenantId]);
+  });
+
+  // Delete RLS-protected tables while scoped to the tenant, then the tenant row itself
   await postgres.withTenant(tenantId, async (client) => {
     await client.query('DELETE FROM auth_sessions WHERE tenant_id = $1', [tenantId]);
     await client.query('DELETE FROM metering_events WHERE tenant_id = $1', [tenantId]);
     await client.query('DELETE FROM monthly_usage_rollup WHERE tenant_id = $1', [tenantId]);
-    await client.query('DELETE FROM identity_tenants WHERE id = $1', [tenantId]);
     await client.query('DELETE FROM users WHERE tenant_id = $1', [tenantId]);
     await client.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
-  });
-
-  // email_tenant_index has no RLS — clean it up under SYSTEM_TENANT
-  await postgres.withTenant(SYSTEM_TENANT, async (client) => {
-    await client.query('DELETE FROM email_tenant_index WHERE tenant_id = $1', [tenantId]);
   });
 }
 

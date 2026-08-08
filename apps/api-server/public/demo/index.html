@@ -537,6 +537,7 @@
                 border: 1px solid #e6c44a;
               "
             ></span>
+            <a href="/meeting" style="font-size: 12px; font-weight: 600; color: #6b46c1; background: #f3e8ff; padding: 4px 10px; border-radius: 8px; text-decoration: none;" title="Join a voice meeting with your AI team">🎙 Voice Meeting</a>
             <button class="voice-btn" id="voice-btn" title="Toggle voice mode">🎙 Voice</button>
             <span class="voice-unavailable" id="voice-unavailable" style="display: none"
               >Voice not configured</span
@@ -1099,7 +1100,7 @@
           if (!result.tenantId || !result.userId || !result.sessionToken) {
             throw new Error('server returned an incomplete session');
           }
-          session = result;
+          session = { ...result, email };
           localStorage.setItem('voai_demo_session', JSON.stringify(session));
           await init();
         } catch (e) {

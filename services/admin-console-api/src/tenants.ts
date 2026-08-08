@@ -1,7 +1,7 @@
 /**
  * Admin tenant management.
  *
- * Reads from identity_tenants and usage rollup tables to provide the
+ * Reads from tenants and usage rollup tables to provide the
  * operations team with a view of all tenants, their subscription status,
  * and usage metrics.
  *
@@ -47,13 +47,13 @@ export async function listAllTenants(
     `SELECT
        it.id AS tenant_id,
        it.name,
-       it.email,
+       '' AS email,
        COALESCE(it.plan, 'starter') AS plan,
        COALESCE(it.status, 'active') AS status,
        it.created_at,
        COALESCE(mur.total_cost_micro, 0)      AS total_cost_micro_this_month,
        COALESCE(mur.total_roster_calls, 0)    AS total_roster_calls_this_month
-     FROM identity_tenants it
+     FROM tenants it
      LEFT JOIN monthly_usage_rollup mur
        ON mur.tenant_id = it.id
        AND mur.period_year  = $1
@@ -64,7 +64,7 @@ export async function listAllTenants(
   );
 
   const countRows = await postgres.adminQuery<{ count: string }>(
-    'SELECT COUNT(*)::text AS count FROM identity_tenants',
+    'SELECT COUNT(*)::text AS count FROM tenants',
     [],
   );
 
@@ -98,16 +98,15 @@ export async function provisionTenant(
   input: TenantProvisionInput,
 ): Promise<{ tenantId: string; email: string; plan: string }> {
   const rows = await postgres.adminQuery<Record<string, unknown>>(
-    `INSERT INTO identity_tenants (name, email, plan, status)
-     VALUES ($1, $2, $3, 'active')
-     ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, plan = EXCLUDED.plan
-     RETURNING id, email, COALESCE(plan, 'starter') AS plan`,
-    [input.name, input.email.toLowerCase(), input.plan ?? 'starter'],
+    `INSERT INTO tenants (name, plan, status)
+     VALUES ($1, $2, 'active')
+     RETURNING id, COALESCE(plan, 'starter') AS plan`,
+    [input.name, input.plan ?? 'starter'],
   );
   const row = rows[0]!;
   return {
     tenantId: row['id'] as string,
-    email: row['email'] as string,
+    email: input.email ?? '',
     plan: row['plan'] as string,
   };
 }

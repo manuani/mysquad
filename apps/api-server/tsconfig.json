@@ -23,7 +23,8 @@
     { "path": "../../services/marketplace-metering" },
     { "path": "../../services/notification" },
     { "path": "../../services/admin-console-api" },
-    { "path": "../../packages/audit" }
+    { "path": "../../packages/audit" },
+    { "path": "../../services/voice-gateway" }
   ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]

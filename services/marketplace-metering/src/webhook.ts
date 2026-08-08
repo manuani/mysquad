@@ -39,7 +39,7 @@ async function updateTenantPlan(
   // adminQuery bypasses RLS — we need to find the tenant by stripe_customer_id
   // across all tenants (cross-tenant admin operation).
   const rows = await postgres.adminQuery<{ id: string }>(
-    `UPDATE identity_tenants
+    `UPDATE tenants
      SET plan = $1, status = $2, updated_at = now()
      WHERE stripe_customer_id = $3
      RETURNING id`,
