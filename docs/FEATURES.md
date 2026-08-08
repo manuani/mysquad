@@ -167,13 +167,63 @@
 
 ---
 
-## 11. Platform Infrastructure
+## 11. Voice Meeting (Voice Gateway + Media Coordinator)
+
+**Who uses it:** Founders who want to *talk* to their AI team instead of typing.
 
 | # | Feature | Endpoint |
 |---|---------|----------|
-| 11.1 | Health check (all modules) | `GET /healthz` |
-| 11.2 | Demo Web UI | `GET /demo` (browser) |
-| 11.3 | Admin Web UI | `GET /admin` (browser) |
-| 11.4 | Rate limiting | Built-in — 1000/15min global, 20/15min auth, 100/min metering |
-| 11.5 | Audit log | Automatic — every write recorded with actor + timestamp |
-| 11.6 | Distributed trace IDs | `x-request-id` header on every response |
+| 11.1 | Create a voice room | `POST /v1/voice-gateway/rooms` |
+| 11.2 | Get a participant token (human joins) | `POST /v1/voice-gateway/rooms/:name/token` |
+| 11.3 | Start the AI advisors in the room | `POST /v1/voice-gateway/rooms/:name/start-ai` |
+| 11.4 | End the room | `POST /v1/voice-gateway/rooms/:name/end` |
+| 11.5 | Voice Meeting Web UI | `GET /meeting` (browser) |
+
+**Tenant isolation:** room names are prefixed with the tenant id; joining,
+starting AI in, or ending a room whose prefix doesn't match the caller's tenant
+returns 401.
+
+**How the audio flows:**
+
+1. The browser captures the mic with `MediaRecorder` (WebM/Opus, 250 ms slices)
+   and streams it to the media-coordinator over a WebSocket.
+2. The media-coordinator pipes that to **Deepgram** for streaming transcription.
+3. Each final utterance goes to `agent-runtime`, which returns advisor
+   contributions.
+4. Each contribution is synthesised by **ElevenLabs** in that persona's voice and
+   sent back over the same WebSocket, where the browser plays it.
+
+Transcript and advisor replies stream back on that socket as JSON frames, so the
+UI updates live.
+
+**Runs on a separate port:** the media-coordinator is its own process on `:3001`
+(`node apps/media-coordinator/dist/index.js`) because real-time audio scales
+differently from HTTP traffic.
+
+**Required env:** `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
+`DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY`. The ElevenLabs key needs the
+`text_to_speech` permission. Without these, `/healthz` reports
+`voiceReady: false` and STT/TTS degrade to no-ops rather than failing the room.
+
+**Per-persona voices:** configured in
+`apps/media-coordinator/src/voice-personas.ts`, overridable with
+`VOICE_ID_SARAH`, `VOICE_ID_PRIYA`, `VOICE_ID_MARCUS`.
+
+**Verify it end to end:**
+
+```bash
+node apps/media-coordinator/scripts/verify-voice-pipeline.mjs
+```
+
+---
+
+## 12. Platform Infrastructure
+
+| # | Feature | Endpoint |
+|---|---------|----------|
+| 12.1 | Health check (all modules) | `GET /healthz` |
+| 12.2 | Demo Web UI | `GET /demo` (browser) |
+| 12.3 | Admin Web UI | `GET /admin` (browser) |
+| 12.4 | Rate limiting | Built-in — 1000/15min global, 20/15min auth, 100/min metering |
+| 12.5 | Audit log | Automatic — every write recorded with actor + timestamp |
+| 12.6 | Distributed trace IDs | `x-request-id` header on every response |
