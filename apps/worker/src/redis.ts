@@ -1,10 +1,12 @@
-import IORedis from 'ioredis';
+// Use the named `Redis` export rather than the default: ioredis ships CJS
+// typings whose default resolves to a namespace, which cannot be used as a type.
+import { Redis } from 'ioredis';
 
-let _connection: IORedis | undefined;
+let _connection: Redis | undefined;
 
-export function getRedisConnection(redisUrl: string): IORedis {
+export function getRedisConnection(redisUrl: string): Redis {
   if (!_connection) {
-    _connection = new IORedis(redisUrl, {
+    _connection = new Redis(redisUrl, {
       maxRetriesPerRequest: null, // required by BullMQ
       enableReadyCheck: false,
     });

@@ -85,18 +85,18 @@ export async function getMonthlyUsage(
     return parseInt(result.rows[0]?.count ?? '0', 10);
   }
 
-  // seats: count active users (not a metering_events query — use identity table)
+  // seats: count active users (not a metering_events query — use the users table)
   const result = await client.query<{ count: string }>(
     `SELECT COUNT(*) as count
-     FROM identity_users
-     WHERE tenant_id = $1 AND status = 'active'`,
+     FROM users
+     WHERE tenant_id = $1 AND active = true`,
     [tc.tenantId],
   );
   return parseInt(result.rows[0]?.count ?? '0', 10);
 }
 
 /**
- * Reads tenant plan from the identity_tenants table and returns entitlement status.
+ * Reads tenant plan from the tenants table and returns entitlement status.
  * Does NOT throw — callers decide whether to enforce.
  */
 export async function checkEntitlement(
@@ -106,7 +106,7 @@ export async function checkEntitlement(
 ): Promise<EntitlementStatus> {
   // Read the tenant's current plan
   const planResult = await client.query<{ plan: string }>(
-    `SELECT plan FROM identity_tenants WHERE id = $1`,
+    `SELECT plan FROM tenants WHERE id = $1`,
     [tc.tenantId],
   );
   const plan = (planResult.rows[0]?.plan ?? 'starter') as PlanTier;

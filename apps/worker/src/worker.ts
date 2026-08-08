@@ -13,7 +13,7 @@
 import { Worker, Queue, type Job } from 'bullmq';
 import type { PostgresClient, Neo4jClient } from '@voai/db';
 import type { Logger } from '@voai/types';
-import type { default as IORedis } from 'ioredis';
+import type { Redis as IORedis } from 'ioredis';
 import { processBrainIndex } from './brain-index-processor.js';
 import { processNeo4jGraph } from './neo4j-graph-processor.js';
 import type { BrainIndexJobData, Neo4jGraphJobData } from './jobs.js';

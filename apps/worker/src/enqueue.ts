@@ -7,7 +7,7 @@
  */
 
 import { Queue } from 'bullmq';
-import type IORedis from 'ioredis';
+import type { Redis as IORedis } from 'ioredis';
 import {
   QUEUE_BRAIN_INDEX,
   QUEUE_NEO4J_GRAPH,

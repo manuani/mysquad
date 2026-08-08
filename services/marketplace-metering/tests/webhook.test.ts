@@ -88,7 +88,7 @@ describe('stripe webhook endpoint', () => {
     // Allow the async handler to complete
     await new Promise((r) => setTimeout(r, 20));
     expect(postgres.adminQuery).toHaveBeenCalledWith(
-      expect.stringContaining('UPDATE identity_tenants'),
+      expect.stringContaining('UPDATE tenants'),
       expect.arrayContaining(['growth', 'active', 'cus_123']),
     );
 
@@ -120,7 +120,7 @@ describe('stripe webhook endpoint', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     expect(postgres.adminQuery).toHaveBeenCalledWith(
-      expect.stringContaining('UPDATE identity_tenants'),
+      expect.stringContaining('UPDATE tenants'),
       expect.arrayContaining(['starter', 'cancelled', 'cus_456']),
     );
 

@@ -1,7 +1,7 @@
--- Migration 0010: add plan and status columns to identity_tenants
+-- Migration 0010: add plan and status columns to tenants
 -- Used by admin console for subscription tier tracking and tenant lifecycle.
 
-ALTER TABLE identity_tenants
+ALTER TABLE tenants
   ADD COLUMN IF NOT EXISTS plan   TEXT NOT NULL DEFAULT 'starter'
     CHECK (plan IN ('starter', 'growth', 'enterprise')),
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'

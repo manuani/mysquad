@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  ioredis: 5.10.1
+
 importers:
 
   .:
@@ -98,6 +101,9 @@ importers:
       '@voai/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@voai/voice-gateway':
+        specifier: workspace:*
+        version: link:../../services/voice-gateway
       express:
         specifier: ^4.21.0
         version: 4.22.1
@@ -138,6 +144,9 @@ importers:
       livekit-server-sdk:
         specifier: ^2.6.0
         version: 2.16.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.0
     devDependencies:
       '@types/express':
         specifier: ^4.17.21
@@ -145,6 +154,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.1
       typescript:
         specifier: ^5.5.0
         version: 5.9.3
@@ -185,6 +197,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
       '@voai/brain':
         specifier: workspace:*
         version: link:../../services/brain
@@ -204,8 +219,8 @@ importers:
         specifier: ^5.4.2
         version: 5.79.2
       ioredis:
-        specifier: ^5.3.2
-        version: 5.11.1
+        specifier: 5.10.1
+        version: 5.10.1
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -270,8 +285,8 @@ importers:
         specifier: ^3.1075.0
         version: 3.1075.0
       ioredis:
-        specifier: ^5.11.1
-        version: 5.11.1
+        specifier: 5.10.1
+        version: 5.10.1
       neo4j-driver:
         specifier: ^6.1.0
         version: 6.1.0
@@ -475,6 +490,9 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.22.1
+      express-rate-limit:
+        specifier: ^8.5.2
+        version: 8.5.2(express@4.22.1)
     devDependencies:
       '@types/express':
         specifier: ^4.17.21
@@ -716,6 +734,37 @@ importers:
       openai:
         specifier: ^6.45.0
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.62)(@smithy/signature-v4@5.6.2)(ws@8.21.0)(zod@3.25.76)
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.39)
+
+  services/voice-gateway:
+    dependencies:
+      '@voai/auth-context':
+        specifier: workspace:*
+        version: link:../../packages/auth-context
+      '@voai/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@voai/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+      '@voai/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      express:
+        specifier: ^4.21.0
+        version: 4.22.1
+      livekit-server-sdk:
+        specifier: ^2.6.0
+        version: 2.16.0
     devDependencies:
       '@types/express':
         specifier: ^4.17.21
@@ -1278,9 +1327,6 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
-  '@ioredis/commands@1.10.0':
-    resolution: {integrity: sha512-UmeW7z4LfctwoQ5wkhVzgq8tXkreED2xZGpX+Bg+zA+WJFZCT6c062AfCK/Dfk81xZnnwdhJCUMkitihRaoC2Q==}
-
   '@ioredis/commands@1.5.1':
     resolution: {integrity: sha512-JH8ZL/ywcJyR9MmJ5BNqZllXNZQqQbnVZOqpPQqE1vHiFgAw4NHbvE0FOduNU8IX9babitBT46571OnPTT0Zcw==}
 
@@ -1608,6 +1654,9 @@ packages:
 
   '@types/supertest@7.2.0':
     resolution: {integrity: sha512-uh2Lv57xvggst6lCqNdFAmDSvoMG7M/HDtX4iUCquxQ5EGPtaPM5PL5Hmi7LCvOG8db7YaCPNJEeoI8s/WzIQw==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@typescript-eslint/eslint-plugin@8.59.1':
     resolution: {integrity: sha512-BOziFIfE+6osHO9FoJG4zjoHUcvI7fTNBSpdAwrNH0/TLvzjsk2oo8XSSOT2HhqUyhZPfHv4UOffoJ9oEEQ7Ag==}
@@ -2326,10 +2375,6 @@ packages:
 
   ioredis@5.10.1:
     resolution: {integrity: sha512-HuEDBTI70aYdx1v6U97SbNx9F1+svQKBDo30o0b9fw055LMepzpOOd0Ccg9Q6tbqmBSJaMuY0fB7yw9/vjBYCA==}
-    engines: {node: '>=12.22.0'}
-
-  ioredis@5.11.1:
-    resolution: {integrity: sha512-ehuGcf94bQXhfagULNXrJdfnWO38v070jxSx/qE87Kjzmu2fU7ro5EFAb+OPituLqgfyuQaym5DlrNydW2sJ9A==}
     engines: {node: '>=12.22.0'}
 
   ip-address@10.2.0:
@@ -3856,8 +3901,6 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@ioredis/commands@1.10.0': {}
-
   '@ioredis/commands@1.5.1': {}
 
   '@isaacs/cliui@9.0.0': {}
@@ -4150,6 +4193,10 @@ snapshots:
     dependencies:
       '@types/methods': 1.1.4
       '@types/superagent': 8.1.10
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 20.19.39
 
   '@typescript-eslint/eslint-plugin@8.59.1(@typescript-eslint/parser@8.59.1(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -4973,18 +5020,6 @@ snapshots:
       denque: 2.1.0
       lodash.defaults: 4.2.0
       lodash.isarguments: 3.1.0
-      redis-errors: 1.2.0
-      redis-parser: 3.0.0
-      standard-as-callback: 2.1.0
-    transitivePeerDependencies:
-      - supports-color
-
-  ioredis@5.11.1:
-    dependencies:
-      '@ioredis/commands': 1.10.0
-      cluster-key-slot: 1.1.1
-      debug: 4.4.3
-      denque: 2.1.0
       redis-errors: 1.2.0
       redis-parser: 3.0.0
       standard-as-callback: 2.1.0

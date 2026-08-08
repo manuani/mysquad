@@ -40,6 +40,12 @@
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
+  "pnpm": {
+    "overridesComment": "bullmq resolves its own ioredis copy; a second copy makes apps/worker's Redis type structurally incompatible with bullmq's ConnectionOptions. Pin a single version.",
+    "overrides": {
+      "ioredis": "5.10.1"
+    }
+  },
   "lint-staged": {
     "*.{ts,tsx}": [
       "prettier --write",

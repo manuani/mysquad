@@ -86,9 +86,14 @@ export function createPipelineSession(
           .filter((c) => !c.skipped && c.contribution?.content)
           .map(async (c): Promise<PipelineContribution> => {
             const voice = voiceForPersona(c.agentName);
-            const audio = voice
-              ? await tts.synthesise(c.contribution.content, voice.elevenLabsVoiceId)
-              : null;
+            let audio: Buffer | null = null;
+            if (voice) {
+              try {
+                audio = await tts.synthesise(c.contribution.content, voice.elevenLabsVoiceId);
+              } catch (ttsErr) {
+                opts.onError(ttsErr instanceof Error ? ttsErr : new Error(String(ttsErr)));
+              }
+            }
 
             // Publish audio into the LiveKit room when all three are configured.
             let ingressId: string | null = null;

@@ -14,7 +14,7 @@ import type { TenantContext } from '@voai/auth-context';
 import { AnthropicProvider } from './anthropic-provider.js';
 import { OpenAIProvider } from './openai-provider.js';
 import { BedrockProvider } from './bedrock-provider.js';
-import { RoutingService } from './routing-service.js';
+import { RoutingService, type PlanTier } from './routing-service.js';
 import { buildRoutingRouter } from './routes.js';
 import type { LlmCompletionRequest, LlmCompletionResult } from './provider.js';
 
@@ -38,7 +38,7 @@ export async function routeCompletion(
   tenantContext: TenantContext,
   routingService: RoutingService,
   request: LlmCompletionRequest,
-  planTier: import('./routing-service.js').PlanTier = 'starter',
+  planTier: PlanTier = 'starter',
 ): Promise<LlmCompletionResult> {
   return routingService.complete(tenantContext, request, planTier);
 }

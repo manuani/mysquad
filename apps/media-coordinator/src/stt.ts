@@ -33,43 +33,105 @@ export function createSttClient(apiKey: string | undefined): SttClient {
 
   const deepgram = createClient(apiKey);
 
+  const DG_OPTS = {
+    model: 'nova-2',
+    language: 'en',
+    smart_format: true,
+    interim_results: true,
+    utterance_end_ms: 1000,
+    vad_events: true,
+    // No encoding/sample_rate — browser sends WebM/Opus, Deepgram auto-detects
+  } as const;
+
   return {
     startSession(onTranscript) {
       const emitter = new EventEmitter() as SttSession;
+      let closed = false;
+      let conn: ReturnType<typeof deepgram.listen.live> | null = null;
+      let connOpen = false;
+      let reconnectDelay = 1000;
+      let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastAudioAt = 0;
+      // The browser sends a containerised stream (WebM/Opus from MediaRecorder,
+      // or WAV in tests). The very first chunk carries the container header —
+      // without it Deepgram cannot decode anything that follows and drops the
+      // socket, which used to produce an endless open/close reconnect loop.
+      // So: keep the header, buffer audio that arrives before the socket is
+      // open, and replay the header first on every reconnect.
+      let header: Buffer | null = null;
+      let pending: Buffer[] = [];
 
-      const connection = deepgram.listen.live({
-        model: 'nova-2',
-        language: 'en-IN',
-        smart_format: true,
-        interim_results: true,
-        utterance_end_ms: 1000,
-        vad_events: true,
-        encoding: 'linear16',
-        sample_rate: 16000,
-      });
+      const send = (c: ReturnType<typeof deepgram.listen.live>, chunk: Buffer): void => {
+        c.send(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer);
+      };
 
-      connection.on(LiveTranscriptionEvents.Transcript, (data) => {
-        const alt = data.channel?.alternatives?.[0];
-        if (!alt) return;
-        const text: string = alt.transcript ?? '';
-        const isFinal: boolean = data.is_final ?? false;
-        if (text.trim()) onTranscript(text, isFinal);
-      });
+      function connect() {
+        if (closed) return;
+        const c = deepgram.listen.live(DG_OPTS);
+        conn = c;
+        connOpen = false;
 
-      connection.on(LiveTranscriptionEvents.Error, (err) => {
-        emitter.emit('error', err);
-      });
+        c.on(LiveTranscriptionEvents.Open, () => {
+          connOpen = true;
+          reconnectDelay = 1000; // reset backoff on success
+          console.log(JSON.stringify({ level: 'info', msg: 'deepgram-open' }));
+          // Replay the container header, then flush anything buffered while
+          // the socket was connecting.
+          if (header && !pending.includes(header)) send(c, header);
+          for (const chunk of pending) send(c, chunk);
+          pending = [];
+        });
 
+        c.on(LiveTranscriptionEvents.Transcript, (data) => {
+          const alt = data.channel?.alternatives?.[0];
+          if (!alt) return;
+          const text: string = alt.transcript ?? '';
+          const isFinal: boolean = data.is_final ?? false;
+          if (text.trim()) {
+            console.log(JSON.stringify({ level: 'info', msg: 'deepgram-transcript', text, isFinal }));
+            onTranscript(text, isFinal);
+          }
+        });
+
+        const scheduleReconnect = () => {
+          conn = null;
+          connOpen = false;
+          if (closed) return;
+          // Don't reconnect if no audio has arrived recently (idle session)
+          if (Date.now() - lastAudioAt > 30_000) {
+            console.log(JSON.stringify({ level: 'info', msg: 'deepgram-idle-no-reconnect' }));
+            return;
+          }
+          reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+          reconnectTimer = setTimeout(connect, reconnectDelay);
+        };
+
+        c.on(LiveTranscriptionEvents.Close, scheduleReconnect);
+        c.on(LiveTranscriptionEvents.Error, () => { c.finish(); scheduleReconnect(); });
+      }
+
+      // Lazy connect — open Deepgram only when audio actually arrives
       emitter.sendAudio = (chunk: Buffer) => {
-        // Deepgram's send() expects Blob | ArrayBuffer | string — slice the
-        // Node Buffer's underlying ArrayBuffer to the correct byte range.
-        connection.send(
-          chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer,
-        );
+        if (closed) return;
+        lastAudioAt = Date.now();
+        header ??= chunk; // first chunk of the stream carries the container header
+        if (!conn) connect();
+        if (connOpen) {
+          send(conn!, chunk);
+        } else {
+          // Socket still connecting — buffer rather than drop, or we lose the
+          // header and every later chunk becomes undecodable.
+          pending.push(chunk);
+          if (pending.length > 200) pending.splice(0, pending.length - 200); // cap ~50s
+        }
       };
 
       emitter.close = () => {
-        connection.finish();
+        closed = true;
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        pending = [];
+        conn?.finish();
+        conn = null;
       };
 
       return emitter;
