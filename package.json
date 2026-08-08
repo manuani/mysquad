@@ -25,7 +25,9 @@
     "docker:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
     "db:migrate": "pnpm --filter @voai/db run migrate:up",
     "db:migrate:down": "pnpm --filter @voai/db run migrate:down",
-    "db:seed": "pnpm --filter @voai/db run seed"
+    "db:seed": "pnpm --filter @voai/db run seed",
+    "verify:e2e": "node scripts/verify-platform-e2e.mjs",
+    "verify:voice": "node apps/media-coordinator/scripts/verify-voice-pipeline.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
