@@ -16,6 +16,7 @@ import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { RaiseHandEvent } from '@voai/events';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildMeetingRouter } from './routes.js';
 import { SseManager } from './sse.js';
 
@@ -48,8 +49,9 @@ export const meetingModule: ModuleDefinition = {
     const router = express.Router();
     router.use(buildMeetingRouter(postgres, log, sse));
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'meeting', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'meeting', ...health });
     });
 
     log.info('module registered');
@@ -57,7 +59,7 @@ export const meetingModule: ModuleDefinition = {
     return {
       name: 'meeting',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

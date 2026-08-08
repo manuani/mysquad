@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import express, { type Request, type Response } from 'express';
 import type { TenantContext } from '@voai/auth-context';
 import type { PostgresClient, TenantScopedClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type {
   ActionRow,
@@ -346,7 +347,7 @@ export const notificationModule: ModuleDefinition = {
     return {
       name: 'notification',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

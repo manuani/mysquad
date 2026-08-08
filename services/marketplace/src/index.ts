@@ -11,8 +11,9 @@
  */
 
 import express from 'express';
-import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
+import type { HealthStatus, ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient, Neo4jClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildMarketplaceRouter } from './routes.js';
 
 export type {
@@ -52,8 +53,24 @@ export const marketplaceModule: ModuleDefinition = {
     const router = express.Router();
     router.use(buildMarketplaceRouter(postgres, log, { neo4j: neo4jClient }));
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'marketplace', status: 'healthy' });
+    // Postgres is required — without it nothing in this module answers. Neo4j
+    // backs graph-based expert matching only, and the module already runs with
+    // it absent, so an unreachable graph is degraded rather than unhealthy:
+    // expert listing and booking still work off Postgres.
+    const health = async (): Promise<HealthStatus> => {
+      const core = await checkDependencies({ postgres });
+      if (core.status !== 'healthy') return core;
+      if (!neo4jClient) return { status: 'healthy' };
+
+      const graph = await checkDependencies({ neo4j: neo4jClient });
+      return graph.status === 'healthy'
+        ? { status: 'healthy' }
+        : { status: 'degraded', reason: `graph-based expert matching unavailable — ${graph.reason}` };
+    };
+
+    router.get('/healthz', async (_req, res) => {
+      const status = await health();
+      res.status(status.status === 'unhealthy' ? 503 : 200).json({ module: 'marketplace', ...status });
     });
 
     log.info('module registered');
@@ -61,7 +78,7 @@ export const marketplaceModule: ModuleDefinition = {
     return {
       name: 'marketplace',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health,
       shutdown: async () => {
         log.info('module shutdown');
       },

@@ -17,6 +17,7 @@
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PlatformConfig } from '@voai/config';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { AnthropicProvider, RoutingService, type OnUsageCallback } from '@voai/routing';
 import { recordMeteringEvent, estimateCostMicro } from '@voai/marketplace-metering';
 import { buildAgentRuntimeRouter } from './routes.js';
@@ -83,8 +84,9 @@ export const agent_runtimeModule: ModuleDefinition = {
 
     const router = buildAgentRuntimeRouter(routingService, log, postgres, ctx.events);
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'agent-runtime', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'agent-runtime', ...health });
     });
 
     log.info('module registered');
@@ -92,7 +94,7 @@ export const agent_runtimeModule: ModuleDefinition = {
     return {
       name: 'agent-runtime',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },
