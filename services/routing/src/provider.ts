@@ -69,6 +69,12 @@ export interface LlmProvider {
   /** Stable identifier used in routing-decision logs (e.g. 'anthropic'). */
   readonly id: string;
   readonly tier: ProviderTier;
+  /**
+   * Whether this provider has the credentials it needs. Providers throw at
+   * call time when unconfigured, so health checks read this instead of
+   * issuing a real (billable) completion to find out.
+   */
+  readonly isConfigured: boolean;
   complete(request: LlmCompletionRequest): Promise<LlmCompletionResult>;
 }
 

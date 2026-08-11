@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VoAI — Voice Meeting</title>
+    <!-- LiveKit browser SDK from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
+        background: #0f1117;
+        color: #e2e8f0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        background: #1a1f2e;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid #2d3748;
+      }
+      header h1 { font-size: 15px; font-weight: 700; color: #fff; }
+      #room-name { font-size: 12px; color: #718096; }
+      #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4a5568; margin-left: auto; }
+      #status-dot.connected { background: #48bb78; animation: pulse 2s infinite; }
+      #status-dot.speaking { background: #f6ad55; }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        grid-template-rows: 1fr auto;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* Participants */
+      #participants-panel {
+        grid-column: 1;
+        grid-row: 1;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
+      }
+      .participant-card {
+        background: #1a1f2e;
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border: 1px solid #2d3748;
+        transition: border-color 0.2s;
+      }
+      .participant-card.speaking { border-color: #48bb78; }
+      .avatar {
+        width: 44px; height: 44px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      .avatar.human { background: #2d3748; color: #90cdf4; }
+      .avatar.ai-sarah { background: #2d1a4a; color: #d6bcfa; }
+      .avatar.ai-priya  { background: #1a2d1a; color: #9ae6b4; }
+      .avatar.ai-marcus { background: #2d1a1a; color: #feb2b2; }
+      .participant-info { flex: 1; min-width: 0; }
+      .participant-name { font-size: 14px; font-weight: 600; color: #fff; }
+      .participant-role { font-size: 11px; color: #718096; margin-top: 2px; }
+      .mic-icon { font-size: 18px; opacity: 0.5; }
+      .mic-icon.active { opacity: 1; color: #48bb78; }
+
+      /* Controls bar */
+      #controls {
+        grid-column: 1;
+        grid-row: 2;
+        background: #1a1f2e;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid #2d3748;
+      }
+      button.ctrl {
+        background: #2d3748;
+        border: none;
+        color: #e2e8f0;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.15s;
+      }
+      button.ctrl:hover { background: #4a5568; }
+      button.ctrl.active { background: #276749; }
+      button.ctrl.danger { background: #742a2a; }
+      button.ctrl.danger:hover { background: #9b2c2c; }
+      button.ctrl:disabled { opacity: 0.4; cursor: not-allowed; }
+      #invite-ai-btn { background: #553c9a; }
+      #invite-ai-btn:hover { background: #6b46c1; }
+      #invite-ai-btn.active { background: #276749; }
+      #end-btn { margin-left: auto; }
+
+      /* Right panel — transcript + AI chat */
+      #right-panel {
+        grid-column: 2;
+        grid-row: 1 / 3;
+        background: #141820;
+        border-left: 1px solid #2d3748;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      #right-tabs {
+        display: flex;
+        border-bottom: 1px solid #2d3748;
+      }
+      .tab {
+        flex: 1;
+        padding: 10px;
+        text-align: center;
+        font-size: 12px;
+        color: #718096;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+      }
+      .tab.active { color: #90cdf4; border-bottom-color: #4299e1; }
+
+      #transcript-feed, #ai-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #ai-feed { display: none; }
+      #ai-feed.visible { display: flex; }
+      #transcript-feed.hidden { display: none; }
+
+      .transcript-line {
+        font-size: 12px;
+        line-height: 1.5;
+        color: #a0aec0;
+        padding: 4px 0;
+        border-bottom: 1px solid #1a1f2e;
+      }
+      .transcript-line .speaker { font-weight: 600; color: #90cdf4; margin-right: 6px; }
+      .transcript-line.interim { opacity: 0.6; font-style: italic; }
+
+      .ai-bubble {
+        background: #1a1f2e;
+        border-radius: 10px;
+        padding: 12px 14px;
+        border-left: 3px solid #553c9a;
+      }
+      .ai-bubble.sarah { border-left-color: #9f7aea; }
+      .ai-bubble.priya { border-left-color: #48bb78; }
+      .ai-bubble.marcus { border-left-color: #fc8181; }
+      .ai-bubble .ai-name {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
+      }
+      .ai-bubble.sarah .ai-name { color: #9f7aea; }
+      .ai-bubble.priya .ai-name { color: #48bb78; }
+      .ai-bubble.marcus .ai-name { color: #fc8181; }
+      .ai-bubble .ai-text { font-size: 12px; line-height: 1.6; color: #e2e8f0; }
+
+      /* Join screen */
+      #join-screen {
+        position: fixed; inset: 0;
+        background: #0f1117;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+      }
+      #join-screen.hidden { display: none; }
+      .join-card {
+        background: #1a1f2e;
+        border-radius: 16px;
+        padding: 36px;
+        width: 400px;
+        border: 1px solid #2d3748;
+      }
+      .join-card h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+      .join-card p { font-size: 13px; color: #718096; margin-bottom: 24px; }
+      .join-card input, .join-card select {
+        width: 100%;
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #e2e8f0;
+        font-size: 13px;
+        margin-bottom: 12px;
+        outline: none;
+      }
+      .join-card input:focus { border-color: #4299e1; }
+      .join-card button {
+        width: 100%;
+        background: #553c9a;
+        color: #fff;
+        border: none;
+        padding: 11px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-bottom: 8px;
+      }
+      .join-card button:hover { background: #6b46c1; }
+      .join-card button.secondary {
+        background: #2d3748;
+        font-weight: 400;
+        font-size: 13px;
+      }
+      .join-card button.secondary:hover { background: #4a5568; }
+      #join-error { color: #fc8181; font-size: 12px; margin-bottom: 10px; display: none; }
+      .divider { text-align: center; color: #4a5568; font-size: 12px; margin: 8px 0; }
+
+      .empty-state { color: #4a5568; font-size: 12px; text-align: center; padding: 24px; }
+    </style>
+  </head>
+  <body>
+    <!-- Join Screen -->
+    <div id="join-screen">
+      <div class="join-card">
+        <h2>🎙 VoAI Voice Meeting</h2>
+        <p>Join a live voice meeting with your AI advisory team. Sign in at <a href="/demo" style="color:#90cdf4">/demo</a> first — your session auto-loads here.</p>
+        <p id="join-error"></p>
+        <input type="password" id="token-input" placeholder="Session token (auto-filled from demo)" />
+        <input type="text" id="display-name-input" placeholder="Your display name" />
+        <div class="divider">— join existing room or create new —</div>
+        <input type="text" id="room-input" placeholder="Room name (leave blank to create new)" />
+        <button onclick="joinMeeting()">Join / Create Meeting</button>
+        <button class="secondary" onclick="window.location='/demo'">← Back to Demo</button>
+      </div>
+    </div>
+
+    <!-- Meeting UI -->
+    <header>
+      <h1>🎙 VoAI Voice Meeting</h1>
+      <span id="room-name">—</span>
+      <div id="status-dot"></div>
+    </header>
+
+    <div class="layout">
+      <!-- Participants -->
+      <div id="participants-panel">
+        <div class="empty-state">Connecting…</div>
+      </div>
+
+      <!-- Controls -->
+      <div id="controls">
+        <button class="ctrl" id="mic-btn" onclick="toggleMic()" disabled>🎙 Mic Off</button>
+        <button class="ctrl" id="invite-ai-btn" onclick="inviteAI()" disabled>🤖 Invite AI Team</button>
+        <button class="ctrl danger" id="end-btn" onclick="endMeeting()">📴 End Meeting</button>
+      </div>
+
+      <!-- Right panel -->
+      <div id="right-panel">
+        <div id="right-tabs">
+          <div class="tab active" onclick="showTab('transcript')">Live Transcript</div>
+          <div class="tab" onclick="showTab('ai')">AI Contributions</div>
+        </div>
+        <div id="transcript-feed">
+          <div class="empty-state">Transcript will appear here as you speak…</div>
+        </div>
+        <div id="ai-feed">
+          <div class="empty-state">AI responses will appear here…</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ── State ──────────────────────────────────────────────────────────────
+      const API = '/v1';
+      const MC_URL = 'http://localhost:3001'; // media-coordinator
+      let livekitRoom = null;
+      let sessionToken = '';
+      let tenantId = '';
+      let userId = '';
+      let displayName = 'You';
+      let currentRoomName = '';
+      let voiceSessionId = '';
+      let micTrack = null;
+      let micEnabled = false;
+      let audioWs = null;       // WebSocket to media-coordinator for STT
+      let aiInvited = false;
+      let mediaStream = null;
+      let audioProcessor = null;
+      let audioContext = null;
+      let transcriptCleared = false;
+      let aiCleared = false;
+
+      // Persona CSS class mapping
+      const personaClass = {
+        'Sarah Chen': 'sarah',
+        'Priya Reddy': 'priya',
+        'Marcus Webb': 'marcus',
+      };
+      const personaAvatar = {
+        'Sarah Chen': { emoji: 'SC', cls: 'ai-sarah' },
+        'Priya Reddy': { emoji: 'PR', cls: 'ai-priya' },
+        'Marcus Webb': { emoji: 'MW', cls: 'ai-marcus' },
+      };
+
+      // ── Join flow ──────────────────────────────────────────────────────────
+      async function joinMeeting() {
+        const rawToken = document.getElementById('token-input').value.trim();
+        displayName = document.getElementById('display-name-input').value.trim() || 'Founder';
+        const roomInput = document.getElementById('room-input').value.trim();
+
+        if (!rawToken) {
+          showJoinError('Session token required — sign in at /demo first');
+          return;
+        }
+
+        // Step 1 — resolve auth context from /me
+        const meRes = await fetch(`${API}/identity-and-tenancy/me`, {
+          headers: { Authorization: `Bearer ${rawToken}` },
+        });
+        if (!meRes.ok) {
+          showJoinError('Invalid session token — please sign in at /demo first');
+          return;
+        }
+        const me = await meRes.json();
+        sessionToken = rawToken;
+        tenantId = me.tenantId;
+        userId = me.userId;
+
+        const authHeaders = {
+          'x-tenant-id': tenantId,
+          'x-user-id': userId,
+          'x-user-type': 'founder',
+          'x-session-id': sessionToken,
+          'Content-Type': 'application/json',
+        };
+
+        // Step 2 — create or join a room
+        let roomName = roomInput;
+        if (!roomName) {
+          const roomRes = await fetch(`${API}/voice-gateway/rooms`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({ title: `${displayName}'s Meeting` }),
+          });
+          if (!roomRes.ok) {
+            showJoinError('Failed to create room — is the server running?');
+            return;
+          }
+          const roomData = await roomRes.json();
+          roomName = roomData.roomName;
+        }
+        currentRoomName = roomName;
+
+        // Step 3 — get a participant token
+        const tokenRes = await fetch(`${API}/voice-gateway/rooms/${roomName}/token`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ displayName }),
+        });
+        if (!tokenRes.ok) {
+          showJoinError('Failed to get room token');
+          return;
+        }
+        const tokenData = await tokenRes.json();
+
+        // Step 4 — connect to LiveKit
+        const { Room, RoomEvent, Track, createLocalAudioTrack } = LivekitClient;
+        livekitRoom = new Room({ adaptiveStream: true, dynacast: true });
+
+        livekitRoom.on(RoomEvent.ParticipantConnected, renderParticipants);
+        livekitRoom.on(RoomEvent.ParticipantDisconnected, renderParticipants);
+        livekitRoom.on(RoomEvent.ActiveSpeakersChanged, handleSpeakers);
+        livekitRoom.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+        livekitRoom.on(RoomEvent.Disconnected, () => setStatus('disconnected'));
+
+        await livekitRoom.connect(tokenData.wsUrl, tokenData.token);
+
+        // Step 5 — publish local mic
+        micTrack = await createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
+        await livekitRoom.localParticipant.publishTrack(micTrack);
+        micEnabled = true;
+
+        // Step 6 — open WebSocket to media-coordinator for STT
+        connectAudioWS();
+
+        // Update UI
+        document.getElementById('join-screen').classList.add('hidden');
+        document.getElementById('room-name').textContent = roomName;
+        document.getElementById('status-dot').classList.add('connected');
+        document.getElementById('mic-btn').disabled = false;
+        document.getElementById('mic-btn').textContent = '🎙 Mic On';
+        document.getElementById('mic-btn').classList.add('active');
+        document.getElementById('invite-ai-btn').disabled = false;
+        renderParticipants();
+        primeAudioPlayback();
+        startAudioCapture();
+      }
+
+      // ── Audio capture → media-coordinator ──────────────────────────────────
+      function connectAudioWS() {
+        // The MC session ID is set in the URL path — client generates it.
+        const sessionId = `${tenantId.slice(0, 8)}-${Date.now()}`;
+        voiceSessionId = sessionId;
+        const wsBase = MC_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+
+        fetch(`${MC_URL}/sessions/${sessionId}/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenantId,
+            userId,
+            sessionToken,
+            livekitRoomName: currentRoomName,
+          }),
+        }).then(async (r) => {
+          if (!r.ok) { console.warn('MC session start failed', r.status, await r.text()); return; }
+          audioWs = new WebSocket(`${wsBase}/sessions/${sessionId}/ws`);
+          audioWs.binaryType = 'arraybuffer';
+          audioWs.onmessage = handleMCMessage;
+          audioWs.onerror = (e) => console.warn('audioWs error', e);
+          audioWs.onopen = () => console.log('audioWs connected for STT', sessionId);
+          audioWs.onclose = () => console.log('audioWs closed');
+        }).catch((e) => console.warn('MC connect error', e));
+      }
+
+      async function startAudioCapture() {
+        // Use MediaRecorder — avoids all Web Audio API issues with Chrome's
+        // WebRTC engine (ScriptProcessorNode zeros, AnalyserNode stale buffers,
+        // AudioWorklet repeated frames from shared hardware mic buffer).
+        // MediaRecorder sends compressed WebM/OGG which Deepgram auto-detects.
+        let rawStream;
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioinputs = devices.filter(d => d.kind === 'audioinput');
+          const rank = (d) => {
+            const l = d.label.toLowerCase();
+            if (l.includes('built-in') || l.includes('internal') || l.includes('macbook')) return 0;
+            if (l.includes('bluetooth') || l.includes('airpod') || l.includes('bt')) return 2;
+            return 1;
+          };
+          const preferred = [...audioinputs].sort((a, b) => rank(a) - rank(b))[0];
+          const constraint = preferred
+            ? { audio: { deviceId: { ideal: preferred.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } }
+            : { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+          console.log('STT mic:', preferred?.label ?? 'default');
+          rawStream = await navigator.mediaDevices.getUserMedia(constraint);
+        } catch (e) {
+          console.warn('STT getUserMedia failed, falling back to LiveKit track', e);
+          if (!micTrack) return;
+          rawStream = new MediaStream([micTrack.mediaStreamTrack]);
+        }
+
+        // Pick best supported MIME type — Deepgram accepts WebM Opus natively
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/ogg;codecs=opus';
+
+        const recorder = new MediaRecorder(rawStream, { mimeType });
+        recorder.ondataavailable = (e) => {
+          if (!e.data || e.data.size < 10) return;
+          if (!audioWs || audioWs.readyState !== WebSocket.OPEN || !micEnabled) return;
+          if (ttsSpeaking) return; // don't transcribe the advisors' own voices
+          audioWs.send(e.data);
+        };
+        recorder.start(250); // 250ms timeslices
+        console.log('STT MediaRecorder started', mimeType);
+
+        audioProcessor = { recorder, stop() { recorder.stop(); } };
+      }
+
+      function handleMCMessage(event) {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        if (msg.type === 'transcript') {
+          appendTranscript(displayName, msg.text, msg.isFinal);
+        } else if (msg.type === 'contributions') {
+          msg.contributions.forEach((c) => appendAIBubble(c.agentName, c.role, c.text));
+          // Auto-switch to AI tab when contributions arrive
+          showTab('ai');
+          // Speak them aloud, one after another
+          enqueueSpeech(msg.contributions);
+        }
+      }
+
+      // ── Voice output ───────────────────────────────────────────────────────
+      // Advisors speak with their real ElevenLabs voices: the media-coordinator
+      // synthesises each contribution and ships the MP3 over the same WebSocket
+      // (base64). Browser speech synthesis is the fallback when TTS is
+      // unavailable, so an advisor is never silent.
+      // Contributions are queued and played one at a time — otherwise three
+      // advisors talk over each other.
+      const speechQueue = [];
+      let speechPlaying = false;
+
+      function enqueueSpeech(contributions) {
+        contributions.forEach((c) => speechQueue.push(c));
+        if (!speechPlaying) void drainSpeechQueue();
+      }
+
+      async function drainSpeechQueue() {
+        speechPlaying = true;
+        while (speechQueue.length) {
+          const c = speechQueue.shift();
+          ttsSpeaking = true;   // gate STT for the whole utterance
+          try {
+            if (c.audioMp3) await playMp3(c.audioMp3);
+            else await speakAs(c.agentName, c.text);
+          } catch (e) {
+            console.warn('speech failed, falling back', e);
+            try { await speakAs(c.agentName, c.text); } catch {}
+          }
+          ttsSpeaking = false;
+        }
+        speechPlaying = false;
+      }
+
+      // Chrome blocks programmatic audio playback unless the page has had a
+      // user gesture. Join is a click, so unlock playback there — otherwise the
+      // first advisor's MP3 silently fails to play.
+      function primeAudioPlayback() {
+        try {
+          const silent = new Audio('data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoYEG0AAAA0gAAABEVFGmgqK////9bP/6XCykxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo=');
+          silent.volume = 0;
+          void silent.play().catch(() => {});
+        } catch { /* non-fatal */ }
+      }
+
+      function playMp3(b64) {
+        return new Promise((resolve, reject) => {
+          const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+          const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+          const audio = new Audio(url);
+          const done = () => { URL.revokeObjectURL(url); resolve(); };
+          audio.onended = done;
+          audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('mp3 playback failed')); };
+          audio.play().catch(reject);
+        });
+      }
+
+      let ttsSpeaking = false;  // true while an advisor is speaking — gates STT
+      let ttsVoices = [];
+      function loadVoices() { ttsVoices = window.speechSynthesis?.getVoices() ?? []; }
+      loadVoices();
+      if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = loadVoices;
+
+      // Distinct voice + pitch per persona so they're tellable apart
+      const personaVoice = {
+        'Sarah':  { match: ['Samantha', 'Karen', 'Victoria', 'Google US English'], pitch: 1.05, rate: 1.0 },
+        'Priya':  { match: ['Veena', 'Rishi', 'Tessa', 'Google UK English Female'], pitch: 1.2,  rate: 1.05 },
+        'Marcus': { match: ['Daniel', 'Alex', 'Fred', 'Google UK English Male'],    pitch: 0.85, rate: 0.95 },
+      };
+
+      function speakAs(agentName, text) {
+        return new Promise((resolve) => {
+          if (!window.speechSynthesis || !text) { resolve(); return; }
+          const first = String(agentName).split(/\s+/)[0];
+          const cfg = personaVoice[first] ?? { match: [], pitch: 1, rate: 1 };
+          const u = new SpeechSynthesisUtterance(text);
+          const v = ttsVoices.find(v => cfg.match.some(m => v.name.includes(m)))
+                 ?? ttsVoices.find(v => v.lang.startsWith('en'));
+          if (v) u.voice = v;
+          u.pitch = cfg.pitch;
+          u.rate = cfg.rate;
+          u.onend = () => resolve();
+          u.onerror = () => resolve();
+          window.speechSynthesis.speak(u);
+        });
+      }
+
+      // ── LiveKit track handling ──────────────────────────────────────────────
+      function handleTrackSubscribed(track, publication, participant) {
+        const { Track } = LivekitClient;
+        if (track.kind === Track.Kind.Audio) {
+          // Attach AI persona audio to a hidden audio element for playback
+          const audioEl = document.createElement('audio');
+          audioEl.autoplay = true;
+          track.attach(audioEl);
+          document.body.appendChild(audioEl);
+        }
+      }
+
+      function handleSpeakers(speakers) {
+        document.querySelectorAll('.participant-card').forEach((card) => {
+          card.classList.remove('speaking');
+        });
+        speakers.forEach((speaker) => {
+          const card = document.querySelector(`[data-identity="${speaker.identity}"]`);
+          if (card) card.classList.add('speaking');
+        });
+        const statusDot = document.getElementById('status-dot');
+        statusDot.classList.toggle('speaking', speakers.length > 0);
+      }
+
+      // ── Participant rendering ──────────────────────────────────────────────
+      function renderParticipants() {
+        if (!livekitRoom) return;
+        const panel = document.getElementById('participants-panel');
+        const participants = [livekitRoom.localParticipant, ...livekitRoom.remoteParticipants.values()];
+
+        panel.innerHTML = participants.map((p) => {
+          const isAI = p.identity?.startsWith('sarah') || p.identity?.startsWith('priya') || p.identity?.startsWith('marcus');
+          const pName = p.name || p.identity || 'Unknown';
+          const avatarInfo = Object.entries(personaAvatar).find(([k]) => pName.startsWith(k))?.[1];
+          const avatarCls = avatarInfo?.cls ?? 'human';
+          const avatarEmoji = avatarInfo?.emoji ?? pName.slice(0, 2).toUpperCase();
+          const role = isAI ? 'AI Advisor' : (p === livekitRoom.localParticipant ? 'You' : 'Participant');
+
+          return `
+            <div class="participant-card" data-identity="${p.identity}">
+              <div class="avatar ${avatarCls}">${avatarEmoji}</div>
+              <div class="participant-info">
+                <div class="participant-name">${esc(pName)}</div>
+                <div class="participant-role">${role}</div>
+              </div>
+              <span class="mic-icon ${isAI ? 'active' : ''}">🎙</span>
+            </div>`;
+        }).join('');
+      }
+
+      // ── Controls ──────────────────────────────────────────────────────────
+      function toggleMic() {
+        if (!micTrack) return;
+        micEnabled = !micEnabled;
+        micTrack.enabled = micEnabled;
+        const btn = document.getElementById('mic-btn');
+        btn.textContent = micEnabled ? '🎙 Mic On' : '🔇 Mic Off';
+        btn.classList.toggle('active', micEnabled);
+      }
+
+      async function inviteAI() {
+        if (aiInvited) return;
+        const btn = document.getElementById('invite-ai-btn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Inviting AI…';
+
+        try {
+          const res = await fetch(`${API}/voice-gateway/rooms/${currentRoomName}/start-ai`, {
+            method: 'POST',
+            headers: {
+              'x-tenant-id': tenantId,
+              'x-user-id': userId,
+              'x-user-type': 'founder',
+              'x-session-id': sessionToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ sessionToken }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            voiceSessionId = data.voiceSessionId;
+            aiInvited = true;
+            btn.textContent = '✅ AI Team Active';
+            btn.classList.add('active');
+            appendTranscript('System', 'Sarah, Priya, and Marcus have joined the meeting. Speak naturally — call them by name or they\'ll interject when they have something to add.', true);
+          } else {
+            btn.textContent = '🤖 Invite AI Team';
+            btn.disabled = false;
+          }
+        } catch (e) {
+          btn.textContent = '🤖 Invite AI Team';
+          btn.disabled = false;
+          console.error('inviteAI error', e);
+        }
+      }
+
+      async function endMeeting() {
+        if (!livekitRoom) return;
+        if (voiceSessionId) {
+          await fetch(`${API}/voice-gateway/rooms/${currentRoomName}/end`, {
+            method: 'POST',
+            headers: {
+              'x-tenant-id': tenantId,
+              'x-user-id': userId,
+              'x-user-type': 'founder',
+              'x-session-id': sessionToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ voiceSessionId }),
+          }).catch(() => {});
+        }
+        livekitRoom.disconnect();
+        if (audioWs) audioWs.close();
+        if (audioProcessor) audioProcessor.disconnect();
+        if (audioContext) audioContext.close();
+        window.location = '/demo';
+      }
+
+      // ── Transcript ────────────────────────────────────────────────────────
+      function appendTranscript(speaker, text, isFinal) {
+        const feed = document.getElementById('transcript-feed');
+        // Remove empty state
+        if (!transcriptCleared) {
+          feed.innerHTML = '';
+          transcriptCleared = true;
+        }
+        // Update last interim or add new line
+        const existing = feed.querySelector('.interim');
+        if (!isFinal && existing) {
+          existing.querySelector('.text').textContent = text;
+          return;
+        }
+        if (existing && isFinal) existing.remove();
+
+        const line = document.createElement('div');
+        line.className = `transcript-line${isFinal ? '' : ' interim'}`;
+        line.innerHTML = `<span class="speaker">${esc(speaker)}:</span><span class="text">${esc(text)}</span>`;
+        feed.appendChild(line);
+        feed.scrollTop = feed.scrollHeight;
+      }
+
+      function appendAIBubble(agentName, role, text) {
+        const feed = document.getElementById('ai-feed');
+        if (!aiCleared) {
+          feed.innerHTML = '';
+          aiCleared = true;
+        }
+        const cls = personaClass[agentName] ?? 'sarah';
+        const bubble = document.createElement('div');
+        bubble.className = `ai-bubble ${cls}`;
+        bubble.innerHTML = `
+          <div class="ai-name">${esc(agentName)} · ${esc(role)}</div>
+          <div class="ai-text">${esc(text)}</div>`;
+        feed.appendChild(bubble);
+        feed.scrollTop = feed.scrollHeight;
+      }
+
+      // ── Tabs ──────────────────────────────────────────────────────────────
+      function showTab(tab) {
+        document.querySelectorAll('.tab').forEach((t, i) => {
+          t.classList.toggle('active', (i === 0 && tab === 'transcript') || (i === 1 && tab === 'ai'));
+        });
+        document.getElementById('transcript-feed').classList.toggle('hidden', tab !== 'transcript');
+        document.getElementById('ai-feed').classList.toggle('visible', tab === 'ai');
+      }
+
+      // ── Utilities ─────────────────────────────────────────────────────────
+      function setStatus(s) {
+        const dot = document.getElementById('status-dot');
+        dot.className = s === 'connected' ? 'connected' : '';
+      }
+      function showJoinError(msg) {
+        const el = document.getElementById('join-error');
+        el.textContent = msg;
+        el.style.display = 'block';
+      }
+      function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      // Auto-fill from demo UI's localStorage session
+      const saved = localStorage.getItem('voai_demo_session');
+      if (saved) {
+        try {
+          const s = JSON.parse(saved);
+          if (s.sessionToken) document.getElementById('token-input').value = s.sessionToken;
+          if (s.email) document.getElementById('display-name-input').value = s.email.split('@')[0];
+        } catch {}
+      }
+    </script>
+  </body>
+</html>

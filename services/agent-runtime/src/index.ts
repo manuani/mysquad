@@ -17,6 +17,7 @@
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PlatformConfig } from '@voai/config';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { AnthropicProvider, RoutingService, type OnUsageCallback } from '@voai/routing';
 import { recordMeteringEvent, estimateCostMicro } from '@voai/marketplace-metering';
 import { buildAgentRuntimeRouter } from './routes.js';
@@ -73,13 +74,19 @@ export const agent_runtimeModule: ModuleDefinition = {
         .then(() => undefined);
     };
 
-    const provider = new AnthropicProvider(config.anthropicApiKey);
-    const routingService = new RoutingService(provider, log, onUsage);
+    // Register the same Anthropic key at all three tiers so every plan level
+    // can reach it. In production, tier-specific models (Opus/Sonnet/Haiku)
+    // would be used; here we use a single key for all tiers in dev.
+    const providerAdvanced = new AnthropicProvider(config.anthropicApiKey, 'claude-opus-4-8', 'advanced');
+    const providerHigh = new AnthropicProvider(config.anthropicApiKey, 'claude-sonnet-4-6', 'high');
+    const providerGood = new AnthropicProvider(config.anthropicApiKey, 'claude-haiku-4-5-20251001', 'good');
+    const routingService = new RoutingService([providerAdvanced, providerHigh, providerGood], log, onUsage);
 
     const router = buildAgentRuntimeRouter(routingService, log, postgres, ctx.events);
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'agent-runtime', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'agent-runtime', ...health });
     });
 
     log.info('module registered');
@@ -87,7 +94,7 @@ export const agent_runtimeModule: ModuleDefinition = {
     return {
       name: 'agent-runtime',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

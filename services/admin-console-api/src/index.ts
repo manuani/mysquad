@@ -12,6 +12,7 @@
 import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildAdminRouter } from './routes.js';
 
 export type { TenantSummary, TenantListResult, TenantProvisionInput } from './tenants.js';
@@ -27,8 +28,9 @@ export const admin_console_apiModule: ModuleDefinition = {
     const router = express.Router();
     router.use(buildAdminRouter(postgres, log, adminKey));
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'admin-console-api', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'admin-console-api', ...health });
     });
 
     log.info('module registered');
@@ -36,7 +38,7 @@ export const admin_console_apiModule: ModuleDefinition = {
     return {
       name: 'admin-console-api',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

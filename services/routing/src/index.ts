@@ -8,13 +8,13 @@
  */
 
 import express from 'express';
-import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
+import type { HealthStatus, ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PlatformConfig } from '@voai/config';
 import type { TenantContext } from '@voai/auth-context';
 import { AnthropicProvider } from './anthropic-provider.js';
 import { OpenAIProvider } from './openai-provider.js';
 import { BedrockProvider } from './bedrock-provider.js';
-import { RoutingService } from './routing-service.js';
+import { RoutingService, type PlanTier } from './routing-service.js';
 import { buildRoutingRouter } from './routes.js';
 import type { LlmCompletionRequest, LlmCompletionResult } from './provider.js';
 
@@ -38,7 +38,7 @@ export async function routeCompletion(
   tenantContext: TenantContext,
   routingService: RoutingService,
   request: LlmCompletionRequest,
-  planTier: import('./routing-service.js').PlanTier = 'starter',
+  planTier: PlanTier = 'starter',
 ): Promise<LlmCompletionResult> {
   return routingService.complete(tenantContext, request, planTier);
 }
@@ -69,11 +69,38 @@ export const routingModule: ModuleDefinition = {
     const router = express.Router();
     router.use('/', buildRoutingRouter(routingService));
 
-    router.get('/healthz', (_req, res) => {
-      res.json({
+    // Routing has no datastore; its dependencies are the LLM providers. Probing
+    // them for real would mean a billable completion per health check, so this
+    // reports credential availability instead — the failure mode that actually
+    // bites, since an unconfigured provider throws on first use.
+    //
+    // Tiers fail over downward, so losing a tier is survivable; losing every
+    // provider is not, and takes every AI feature with it.
+    const health = (): Promise<HealthStatus> => {
+      const configured = providers.filter((p) => p.isConfigured);
+      if (configured.length === 0) {
+        return Promise.resolve({
+          status: 'unhealthy',
+          reason: 'no LLM provider is configured — set ANTHROPIC_API_KEY',
+        });
+      }
+      const missing = providers.filter((p) => !p.isConfigured);
+      return Promise.resolve(
+        missing.length === 0
+          ? { status: 'healthy' }
+          : {
+              status: 'degraded',
+              reason: `no failover for: ${[...new Set(missing.map((p) => p.id))].join(', ')}`,
+            },
+      );
+    };
+
+    router.get('/healthz', async (_req, res) => {
+      const status = await health();
+      res.status(status.status === 'unhealthy' ? 503 : 200).json({
         module: 'routing',
-        status: 'healthy',
-        providers: providers.map((p) => ({ id: p.id, tier: p.tier })),
+        ...status,
+        providers: providers.map((p) => ({ id: p.id, tier: p.tier, configured: p.isConfigured })),
       });
     });
 
@@ -82,7 +109,7 @@ export const routingModule: ModuleDefinition = {
     return {
       name: 'routing',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health,
       shutdown: async () => {
         log.info('module shutdown');
       },

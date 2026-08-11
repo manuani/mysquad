@@ -10,7 +10,11 @@ function makeTc(tenantId = 'tenant-1'): TenantContext {
 function makeClient(planOverride: string, countOverride: string): TenantScopedClient {
   return {
     query: vi.fn().mockImplementation((sql: string) => {
-      if (sql.includes('identity_tenants')) {
+      // Must match the real table names in packages/db/migrations. A fake that
+      // matches a table that does not exist silently returns the count row for
+      // the plan lookup, so every plan degrades to the 'starter' default and
+      // the higher-tier assertions pass for the wrong reason.
+      if (sql.includes('FROM tenants')) {
         return Promise.resolve({ rows: [{ plan: planOverride }] });
       }
       return Promise.resolve({ rows: [{ count: countOverride }] });
@@ -62,5 +66,18 @@ describe('checkEntitlement', () => {
     const client = makeClient('starter', '1');
     const status = await checkEntitlement(makeTc(), client, 'seats');
     expect(status.dimension).toBe('seats');
+  });
+
+  it('counts seats against the real users table, not a non-existent one', async () => {
+    // Regression guard: this previously queried `identity_users`, a table no
+    // migration creates, so any seats check threw at runtime.
+    const client = makeClient('starter', '2');
+    await checkEntitlement(makeTc(), client, 'seats');
+
+    const sql = (client.query as ReturnType<typeof vi.fn>).mock.calls
+      .map(([s]) => String(s))
+      .join('\n');
+    expect(sql).toContain('FROM users');
+    expect(sql).not.toContain('identity_users');
   });
 });

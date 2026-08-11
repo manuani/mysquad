@@ -9,12 +9,22 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { buildTenantContext } from '@voai/auth-context';
 import { isPlatformError, UnauthenticatedError, ValidationError } from '@voai/errors';
 import type { Logger } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
 import type { AuthProvider, SignInMethod } from './auth-provider.js';
 import { deleteTenantData } from './tenancy.js';
+
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'RATE_LIMITED', message: 'Too many sign-in attempts, please try again later.' },
+  skip: () => process.env['NODE_ENV'] === 'test',
+});
 
 const SIGN_IN_METHODS: readonly SignInMethod[] = [
   'apple',
@@ -70,7 +80,7 @@ export function buildIdentityAndTenancyRouter(
 ): Router {
   const router = Router();
 
-  router.post('/signup', async (req: Request, res: Response) => {
+  router.post('/signup', authRateLimit, async (req: Request, res: Response) => {
     try {
       const { email, method } = parseSignUpInRequest(req);
       const result = await authProvider.signUp(email, method);
@@ -80,7 +90,7 @@ export function buildIdentityAndTenancyRouter(
     }
   });
 
-  router.post('/signin', async (req: Request, res: Response) => {
+  router.post('/signin', authRateLimit, async (req: Request, res: Response) => {
     try {
       const { email, method } = parseSignUpInRequest(req);
       const result = await authProvider.signIn(email, method);

@@ -29,6 +29,9 @@ const DEFAULT_REGION = 'ap-south-1';
 export class BedrockProvider implements LlmProvider {
   readonly id = 'bedrock';
   readonly tier: ProviderTier = 'opensource';
+  // Resolved from the ambient AWS credential chain (env, profile, or task role).
+  readonly isConfigured: boolean =
+    Boolean(process.env['AWS_ACCESS_KEY_ID'] ?? process.env['AWS_PROFILE'] ?? process.env['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI']);
 
   private readonly modelId: string;
   private readonly region: string;

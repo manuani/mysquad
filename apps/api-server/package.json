@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@voai/admin-console-api": "workspace:*",
+    "@voai/voice-gateway": "workspace:*",
     "@voai/agent-runtime": "workspace:*",
     "@voai/audit": "workspace:*",
     "@voai/brain": "workspace:*",

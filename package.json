@@ -25,7 +25,9 @@
     "docker:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
     "db:migrate": "pnpm --filter @voai/db run migrate:up",
     "db:migrate:down": "pnpm --filter @voai/db run migrate:down",
-    "db:seed": "pnpm --filter @voai/db run seed"
+    "db:seed": "pnpm --filter @voai/db run seed",
+    "verify:e2e": "node scripts/verify-platform-e2e.mjs",
+    "verify:voice": "node apps/media-coordinator/scripts/verify-voice-pipeline.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
@@ -39,6 +41,12 @@
     "turbo": "^2.1.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
+  },
+  "pnpm": {
+    "overridesComment": "bullmq resolves its own ioredis copy; a second copy makes apps/worker's Redis type structurally incompatible with bullmq's ConnectionOptions. Pin a single version.",
+    "overrides": {
+      "ioredis": "5.10.1"
+    }
   },
   "lint-staged": {
     "*.{ts,tsx}": [

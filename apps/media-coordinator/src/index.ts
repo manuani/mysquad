@@ -15,6 +15,8 @@
  */
 
 import express, { type Request, type Response } from 'express';
+import { createServer } from 'node:http';
+import { WebSocketServer, type WebSocket } from 'ws';
 import { createLogger } from '@voai/telemetry';
 import { loadVoiceConfig } from './voice-config.js';
 import { createSttClient } from './stt.js';
@@ -40,11 +42,23 @@ interface SessionState {
   readonly contributions: PipelineContribution[][];
   readonly transcriptChunks: Array<{ text: string; isFinal: boolean; at: string }>;
   readonly livekitRoomName: string | undefined;
+  wsListeners?: Array<(contributions: PipelineContribution[]) => void>;
+  transcriptListeners?: Array<(text: string, isFinal: boolean) => void>;
 }
 
 const sessions = new Map<string, SessionState>();
 
 const app = express();
+
+// Allow browser pages served from api-server (:3000) to call MC directly (:3001)
+app.use((_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-tenant-id, x-user-id, x-user-type, x-session-id');
+  if (_req.method === 'OPTIONS') { res.sendStatus(204); return; }
+  next();
+});
+
 app.use(express.raw({ type: 'application/octet-stream', limit: '1mb' }));
 app.use(express.json({ limit: '256kb' }));
 
@@ -61,9 +75,33 @@ const publisher =
       })
     : undefined;
 
-app.get('/healthz', (_req: Request, res: Response) => {
-  res.json({
-    status: 'healthy',
+app.get('/healthz', async (_req: Request, res: Response) => {
+  // Report what is actually true rather than a constant 'healthy'. The
+  // api-server is a hard dependency — without it a transcript can never reach
+  // an advisor — so it is probed for real. Missing STT/TTS credentials leave
+  // the process able to hold rooms but unable to hear or speak, which is
+  // degraded rather than dead.
+  const reasons: string[] = [];
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2_000);
+    try {
+      const upstream = await fetch(`${config.apiServerUrl}/healthz`, { signal: controller.signal });
+      if (!upstream.ok) reasons.push(`api-server returned ${upstream.status}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (err) {
+    reasons.push(`api-server unreachable: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const status = reasons.length > 0 ? 'unhealthy' : config.isVoiceReady ? 'healthy' : 'degraded';
+  if (status === 'degraded') reasons.push('voice credentials not configured — STT/TTS are no-ops');
+
+  res.status(status === 'unhealthy' ? 503 : 200).json({
+    status,
+    ...(reasons.length > 0 ? { reason: reasons.join('; ') } : {}),
     voiceReady: config.isVoiceReady,
     activeSessions: sessions.size,
   });
@@ -116,6 +154,8 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
           count: contributions.length,
           published: contributions.filter((c) => c.ingressId).length,
         });
+        // Notify any open WebSocket listeners
+        state.wsListeners?.forEach((fn) => fn(contributions));
       },
       onTranscriptChunk: (text, isFinal) => {
         (state.transcriptChunks as Array<{ text: string; isFinal: boolean; at: string }>).push({
@@ -123,6 +163,8 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
           isFinal,
           at: new Date().toISOString(),
         });
+        // Push transcript to WS clients
+        state.transcriptListeners?.forEach((fn) => fn(text, isFinal));
       },
       onError: (err) => {
         log.error('pipeline error', { sessionId, err: err.message });
@@ -188,7 +230,83 @@ app.post('/sessions/:id/end', (req: Request, res: Response) => {
   res.json({ sessionId, status: 'ended' });
 });
 
-const server = app.listen(config.port, () => {
+// WebSocket server for real-time audio streaming.
+// Browser connects to ws://media-coordinator:3001/sessions/:id/ws
+// and sends raw PCM frames as binary messages (linear16, 16kHz, mono).
+// The server pipes them directly to the Deepgram STT session.
+// SSE events (transcript chunks, contributions) are broadcast back over the
+// same socket as JSON text frames so the browser can update the live transcript.
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
+
+httpServer.on('upgrade', (req, socket, head) => {
+  const url = req.url ?? '';
+  const match = url.match(/^\/sessions\/([^/]+)\/ws$/);
+  if (!match) {
+    socket.destroy();
+    return;
+  }
+  const sessionId = match[1];
+  wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+    const state = sessions.get(sessionId ?? '');
+    if (!state) {
+      ws.send(JSON.stringify({ type: 'error', message: 'session not found' }));
+      ws.close();
+      return;
+    }
+    log.info('WebSocket audio stream connected', { sessionId });
+
+    // Patch onTranscriptChunk to also push over WebSocket
+    const origPipeline = state.pipeline;
+    ws.on('message', (data: Buffer | ArrayBuffer) => {
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+      origPipeline.sendAudio(buf);
+    });
+
+    // Push transcript chunks over WS
+    const pushTranscript = (text: string, isFinal: boolean) => {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({ type: 'transcript', text, isFinal }));
+      }
+    };
+    (state.transcriptListeners ??= []).push(pushTranscript);
+
+    // Push AI contributions over WS
+    const pushContributions = (contributions: PipelineContribution[]) => {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'contributions',
+          contributions: contributions.map((c) => ({
+            agentName: c.agentName,
+            role: c.role,
+            text: c.text,
+            rank: c.rank,
+            // Ship the TTS audio to the browser directly. LiveKit URL ingress
+            // (the `ingressId` path) needs a publicly reachable selfBaseUrl,
+            // which localhost is not — so in local dev that path yields nothing
+            // and this is the only way the advisors are actually heard.
+            audioMp3: c.audio ? c.audio.toString('base64') : null,
+          })),
+        }));
+      }
+    };
+    (state.wsListeners ??= []).push(pushContributions);
+
+    ws.on('close', () => {
+      log.info('WebSocket audio stream closed', { sessionId });
+      if (state.wsListeners) {
+        const idx = state.wsListeners.indexOf(pushContributions);
+        if (idx !== -1) state.wsListeners.splice(idx, 1);
+      }
+      if (state.transcriptListeners) {
+        const idx = state.transcriptListeners.indexOf(pushTranscript);
+        if (idx !== -1) state.transcriptListeners.splice(idx, 1);
+      }
+    });
+  });
+});
+
+const server = httpServer.listen(config.port, () => {
   log.info('media-coordinator listening', { port: config.port, voiceReady: config.isVoiceReady });
   if (!config.isVoiceReady) {
     log.warn('voice credentials not configured — STT/TTS will be no-ops', {

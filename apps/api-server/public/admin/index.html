@@ -532,7 +532,7 @@
                 <option value="admin">Admin</option>
                 <option value="expert">Expert</option>
               </select>
-              ${u.active ? `<button class="sm danger" onclick="deactivateUser('${u.userId}', '${esc(u.email)}')">Deactivate</button>` : ''}
+              ${u.active ? `<button class="sm danger" data-deactivate="${u.userId}" onclick="deactivateUser('${u.userId}', '${esc(u.email)}')">Deactivate</button>` : ''}
             </td>
           </tr>`,
           )
@@ -574,7 +574,14 @@
       }
 
       async function deactivateUser(userId, email) {
-        if (!confirm(`Deactivate ${email}? This will revoke all their sessions immediately.`)) return;
+        const btn = document.querySelector(`[data-deactivate="${userId}"]`);
+        if (btn && btn.dataset.confirming !== 'true') {
+          btn.dataset.confirming = 'true';
+          btn.textContent = 'Confirm?';
+          btn.style.background = '#fee2e2';
+          setTimeout(() => { if (btn) { btn.dataset.confirming = ''; btn.textContent = 'Deactivate'; btn.style.background = ''; } }, 3000);
+          return;
+        }
         try {
           await api('DELETE', `/tenants/${selectedTenantId}/users/${userId}`);
           toast(`${email} deactivated`);

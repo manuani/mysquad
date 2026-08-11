@@ -25,14 +25,14 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import express from 'express';
+import express, { type Request } from 'express';
 import { loadConfig } from '@voai/config';
 import { createDatabaseClients } from '@voai/db';
 import { createLogger } from '@voai/telemetry';
 import { createInProcessEventBus } from '@voai/events';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { auditMiddleware } from '@voai/audit';
 import identityAndTenancyModule from '@voai/identity-and-tenancy';
 import meetingModule from '@voai/meeting';
@@ -45,6 +45,7 @@ import marketplaceModule from '@voai/marketplace';
 import marketplaceMeteringModule from '@voai/marketplace-metering';
 import notificationModule from '@voai/notification';
 import adminConsoleApiModule from '@voai/admin-console-api';
+import voiceGatewayModule from '@voai/voice-gateway';
 
 /**
  * Module boot order. Modules earlier in this list have no upstream dependencies;
@@ -72,6 +73,8 @@ const MODULES: ModuleDefinition[] = [
   notificationModule,
   // Admin (separate authentication, but shares everything else)
   adminConsoleApiModule,
+  // Voice meetings — LiveKit room lifecycle, AI bot orchestration
+  voiceGatewayModule,
 ];
 
 async function main(): Promise<void> {
@@ -117,6 +120,9 @@ async function main(): Promise<void> {
     next();
   });
 
+  const ipKey = (req: Request) =>
+    ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown');
+
   // Global rate limit — broad DoS protection, keyed by IP
   app.use(
     '/v1',
@@ -125,18 +131,24 @@ async function main(): Promise<void> {
       limit: 1000,
       standardHeaders: 'draft-7',
       legacyHeaders: false,
+      keyGenerator: ipKey,
+
       message: { error: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
     }),
   );
 
   // Stricter limit on auth endpoints — prevents credential stuffing
+  // Use regex to match both /signin and /signup (Express prefix-match only
+  // matches at segment boundaries so '/sign' alone would miss '/signin').
   app.use(
-    '/v1/identity-and-tenancy/sign',
+    /^\/v1\/identity-and-tenancy\/sign/,
     rateLimit({
       windowMs: 15 * 60 * 1000,
       limit: 20,
       standardHeaders: 'draft-7',
       legacyHeaders: false,
+      keyGenerator: ipKey,
+
       message: {
         error: 'RATE_LIMITED',
         message: 'Too many sign-in attempts, please try again later.',
@@ -152,7 +164,8 @@ async function main(): Promise<void> {
       limit: 100,
       standardHeaders: 'draft-7',
       legacyHeaders: false,
-      keyGenerator: (req) => req.header('x-tenant-id') ?? req.ip ?? 'unknown',
+      keyGenerator: (req) => req.header('x-tenant-id') ?? ipKey(req),
+
       message: { error: 'RATE_LIMITED', message: 'Metering rate limit exceeded.' },
     }),
   );
@@ -178,12 +191,38 @@ async function main(): Promise<void> {
   const adminDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'admin');
   app.use('/admin', express.static(adminDir));
 
+  const meetingDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'meeting');
+  app.use('/meeting', express.static(meetingDir));
+
   app.get('/healthz', async (_req, res) => {
     const results = await Promise.all(
-      handles.map(async (h) => ({ module: h.name, ...(await h.health()) })),
+      handles.map(async (h) => {
+        // A module whose health check throws is not healthy. Without this the
+        // rejection escapes Promise.all and /healthz 500s with no detail about
+        // which module failed.
+        try {
+          return { module: h.name, ...(await h.health()) };
+        } catch (err) {
+          return {
+            module: h.name,
+            status: 'unhealthy' as const,
+            reason: `health check threw: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+      }),
     );
-    const overall = results.every((r) => r.status === 'healthy') ? 'healthy' : 'degraded';
-    res.json({ status: overall, modules: results });
+
+    // 'degraded' means reduced capability but still serving, so it stays 200 —
+    // only 'unhealthy' returns 503, or a load balancer would pull the task out
+    // of rotation over a missing optional dependency.
+    const unhealthy = results.some((r) => r.status === 'unhealthy');
+    const overall = unhealthy
+      ? 'unhealthy'
+      : results.every((r) => r.status === 'healthy')
+        ? 'healthy'
+        : 'degraded';
+
+    res.status(unhealthy ? 503 : 200).json({ status: overall, modules: results });
   });
 
   const server = app.listen(config.port, () => {

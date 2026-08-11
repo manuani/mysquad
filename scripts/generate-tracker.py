@@ -501,7 +501,7 @@ CREDS = [
      "AWS_ACCESS_KEY_ID\nAWS_SECRET_ACCESS_KEY",
      "GitHub repo secrets\n(not yet added)",
      "Run in terminal after gh auth login:\n"
-     "gh secret set AWS_ACCESS_KEY_ID --repo manuani/mysquad --body \"AWS_ACCESS_KEY_ID_REDACTED\"\n"
+     "gh secret set AWS_ACCESS_KEY_ID --repo manuani/mysquad --body \"$(aws configure get aws_access_key_id --profile voai-staging)\"\n"
      "gh secret set AWS_SECRET_ACCESS_KEY --repo manuani/mysquad --body \"$(aws configure get aws_secret_access_key --profile voai-staging)\"\n"
      "Then every push to main auto-deploys to ECS staging."),
 

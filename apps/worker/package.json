@@ -14,6 +14,7 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
+    "@voai/auth-context": "workspace:*",
     "@voai/brain": "workspace:*",
     "@voai/config": "workspace:*",
     "@voai/db": "workspace:*",

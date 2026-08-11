@@ -32,6 +32,7 @@ const DEFAULT_MAX_TOKENS = 1024;
 export class AnthropicProvider implements LlmProvider {
   readonly id = 'anthropic';
   readonly tier: ProviderTier;
+  readonly isConfigured: boolean;
 
   private readonly apiKey: string | undefined;
   private readonly model: string;
@@ -42,6 +43,7 @@ export class AnthropicProvider implements LlmProvider {
     tier: ProviderTier = 'high',
   ) {
     this.apiKey = apiKey;
+    this.isConfigured = Boolean(apiKey);
     this.model = model;
     this.tier = tier;
   }

@@ -12,6 +12,7 @@
 import express from 'express';
 import type { ModuleContext, ModuleDefinition, ModuleHandle } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
+import { checkDependencies } from '@voai/db';
 import { buildMeteringRouter } from './routes.js';
 import { buildWebhookRouter } from './webhook.js';
 
@@ -44,8 +45,9 @@ export const marketplace_meteringModule: ModuleDefinition = {
     router.use(express.json({ limit: '256kb' }));
     router.use(buildMeteringRouter(postgres, log));
 
-    router.get('/healthz', (_req, res) => {
-      res.json({ module: 'marketplace-metering', status: 'healthy' });
+    router.get('/healthz', async (_req, res) => {
+      const health = await checkDependencies({ postgres });
+      res.status(health.status === 'healthy' ? 200 : 503).json({ module: 'marketplace-metering', ...health });
     });
 
     log.info('module registered');
@@ -53,7 +55,7 @@ export const marketplace_meteringModule: ModuleDefinition = {
     return {
       name: 'marketplace-metering',
       router,
-      health: async () => ({ status: 'healthy' }),
+      health: () => checkDependencies({ postgres }),
       shutdown: async () => {
         log.info('module shutdown');
       },

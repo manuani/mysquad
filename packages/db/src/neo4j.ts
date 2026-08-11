@@ -26,6 +26,10 @@ export function createNeo4jClient(
         close: () => session.close(),
       };
     },
+
+    // verifyConnectivity checks the driver can actually reach and authenticate
+    // against the server, unlike driver construction, which is lazy.
+    ping: () => driver.verifyConnectivity().then(() => undefined),
   };
 
   return { client, close: () => driver.close() };
