@@ -11,8 +11,8 @@
 | | |
 |---|---|
 | **Steps** | `GET /healthz` |
-| **Expected** | 200, `status: "healthy"`, all 11 modules listed |
-| **Observed** | ✅ Returns `{"status":"healthy"}` with all 11 modules reporting healthy |
+| **Expected** | 200 with all 12 modules listed. `status` is `healthy` when every dependency answers, `degraded` (still 200) when only optional ones are missing, and `unhealthy` with 503 when a required one is unreachable — the `reason` field names it. See ADR 014. |
+| **Observed** | ✅ 200, 12 modules. Reports `degraded` when no LLM failover provider is configured. Stopping Postgres flips it to 503 `unhealthy` with `"postgres: connect ECONNREFUSED ..."`, and it recovers to 200 on its own when Postgres returns. |
 
 ### T-02 · Sign up (create tenant + user)
 | | |
@@ -427,3 +427,43 @@ x-session-id: <token>
 
 ### Admin header
 `x-admin-key: dev-admin-key`
+
+---
+
+## Wave 11 — Voice meeting
+
+Voice needs the media coordinator running alongside the API server:
+`node --env-file=.env.local apps/media-coordinator/dist/index.js` (port 3001).
+
+### T-40 · Voice pipeline, end to end
+| | |
+|---|---|
+| **Steps** | `pnpm verify:voice` — drives a WAV file through the media coordinator's WebSocket the same way the browser does |
+| **Expected** | Final transcripts arrive, advisors reply, each reply carries TTS audio |
+| **Observed** | ✅ 5 transcripts, advisors replied with MP3 audio on each contribution |
+
+### T-41 · Voice room lifecycle and tenant isolation
+| | |
+|---|---|
+| **Steps** | `POST /v1/voice-gateway/rooms`, then `/token`, `/start-ai`, `/end` on the returned room |
+| **Expected** | Room name prefixed with the tenant id; token is a real three-part JWT; `start-ai` returns 3 bot tokens; a room belonging to another tenant returns 401 |
+| **Observed** | ✅ Covered by `pnpm verify:e2e` (12.1–12.4) and by `services/voice-gateway/tests/routes.test.ts` |
+
+### T-42 · Browser voice meeting
+| | |
+|---|---|
+| **Steps** | Open `/meeting/`, join, speak a sentence |
+| **Expected** | Live transcript updates; advisors reply in the AI Contributions tab and speak aloud in distinct voices, one after another |
+| **Observed** | 🔄 Manual check — the automated equivalent is T-40 |
+
+---
+
+## Running the whole surface
+
+```bash
+pnpm verify:e2e      # every module's HTTP surface, real tenant and session
+pnpm verify:voice    # audio in, transcript and spoken replies out
+```
+
+Both need a live stack (`pnpm docker:up`, api-server, media-coordinator) and
+real credentials, so they are deliberately outside `vitest run`.

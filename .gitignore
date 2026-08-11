@@ -48,3 +48,12 @@ apps/founder-mobile/ios/Pods/
 apps/founder-mobile/android/.gradle/
 apps/founder-mobile/android/build/
 apps/founder-mobile/android/app/build/
+
+# Generated reference specs. `scripts/convert-reference-docs.py` renders the
+# authored .docx in docs/reference/ to Markdown so sessions can grep them.
+# The output stays local: this repo is public, and the specs carry internal
+# strategy. The .docx are already committed, but Markdown is code-searchable
+# and search-engine indexable in a way binary attachments are not. Run the
+# script after cloning; see docs/reference/README.md.
+docs/reference/*.md
+!docs/reference/README.md

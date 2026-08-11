@@ -11,25 +11,39 @@ extracting modules.
 
 ## Status
 
-Skeleton — Deliverable 1.1.1 from the Sprint Plan (Phase 1, Sprint 1.1).
-Build passes, tests pass, the modular-monolith registration contract is
-exercised end-to-end. No business logic is implemented yet — every service
-module exposes a `/healthz` route and a contract test, and that is all.
+All twelve service modules carry real handlers, backed by Postgres with
+row-level tenant isolation. The founder-facing surface — AI advisor roster,
+meetings, brain, ledger, entitlements, and voice — works end to end; see
+`docs/FEATURES.md` for the endpoint-by-endpoint reference.
 
-Subsequent deliverables fill in the modules. The boot order, module
-contract, and shared infrastructure are stable from this skeleton forward.
+Voice is the newest capability: speech flows browser → Deepgram → agent
+runtime → ElevenLabs and back, with each advisor answering in their own
+voice (ADR 013).
+
+Still outstanding: the React Native app (Sprint 1.3.1), the admin web app as
+its own bundle (Phase 7 — a working console is served from
+`api-server/public/admin` today), and the evaluation harness (Sprint 5.3).
+Stripe and Cal.com are wired but unproven against live accounts, pending
+credentials.
+
+Two checks exercise a running stack rather than mocks:
+
+```bash
+pnpm verify:e2e      # every module's HTTP surface, with a real tenant and session
+pnpm verify:voice    # audio in, transcript and spoken advisor replies out
+```
 
 ## Layout
 
 ```
 voai-platform/
 ├── apps/                   # The five §3.7 process types
-│   ├── api-server/         # API server pool; modular-monolith boot process. Registers all 11 service modules.
-│   ├── worker/             # Background worker pool — placeholder, populated when first job lands
-│   ├── media-coordinator/  # Media coordinator pool — placeholder, populated in Phase 2
-│   ├── scheduler/          # Scheduled job runner — placeholder, populated when first cron job lands
+│   ├── api-server/         # API server pool; modular-monolith boot process. Registers all 12 service modules.
+│   ├── worker/             # Background worker pool — BullMQ jobs (brain indexing, Neo4j graph)
+│   ├── media-coordinator/  # Real-time audio: Deepgram STT, ElevenLabs TTS, LiveKit publish. Own process on :3001.
+│   ├── scheduler/          # Scheduled job runner — morning briefing
 │   ├── founder-mobile/     # React Native — populated in Sprint 1.3.1
-│   └── admin-web/          # Operations console — populated in Phase 7
+│   └── admin-web/          # Operations console — served today from api-server/public/admin
 ├── services/               # Service modules — one per architecture component
 │   ├── identity-and-tenancy/ # WorkOS auth + multi-tenant isolation (Sprint 1.2, 1.2.2)
 │   ├── meeting/            # Meeting lifecycle and real-time pipeline (Phase 2)
@@ -41,18 +55,19 @@ voai-platform/
 │   ├── marketplace/        # Three-layer expertise stack (Phase 6)
 │   ├── marketplace-metering/  # Four billing models, Stripe metering (Phase 6)
 │   ├── notification/       # Briefings, alerts, push (Phase 4 onwards)
-│   └── admin-console-api/  # Operations team API (Phase 7)
+│   ├── admin-console-api/  # Operations team API (Phase 7)
+│   └── voice-gateway/      # LiveKit rooms and participant tokens (see ADR 013)
 ├── packages/               # Shared libraries used by every service module
 │   ├── types/              # Module contract: ModuleDefinition, ModuleHandle, ModuleContext
 │   ├── config/             # Env-driven configuration with zod validation
 │   ├── telemetry/          # Structured JSON logging; OTel hooks added in Phase 8
-│   ├── auth-context/       # Tenant and user context propagation via AsyncLocalStorage
+│   ├── auth-context/       # Tenant and user context, passed explicitly — never via a side channel (ADR 007)
 │   ├── errors/             # Typed error hierarchy mapped to HTTP responses
 │   ├── events/             # Internal event bus (in-process at v1; Postgres LISTEN/NOTIFY later)
-│   └── db/                 # Postgres + Neo4j + Redis + object store client factories (wired)
+│   └── db/                 # Postgres + Neo4j + Redis + object store clients, and health probes
 ├── infra/
 │   ├── docker/             # Local dev stack: Postgres+pgvector, Neo4j, Redis, MinIO (populated)
-│   └── terraform/          # IaC for staging and production — populated in Sprint 1.1.3
+│   └── terraform/          # IaC for AWS staging, ap-south-1 (populated)
 ├── evals/                  # Evaluation harness — populated in Sprint 5.3
 ├── docs/
 │   └── adr/                # Architecture Decision Records (see docs/adr/README.md)
@@ -93,7 +108,7 @@ pnpm run build
 pnpm run test
 ```
 
-Expected output: 37 Turborepo tasks succeed.
+Expected output: 24 build tasks, then 44 test tasks, all succeeding.
 
 ### Day-to-day commands
 
@@ -114,8 +129,22 @@ set -a && source .env.local && set +a
 pnpm run db:migrate
 pnpm run db:seed         # test tenant + confirms RLS blocks cross-tenant reads
 pnpm run build
-node apps/api-server/dist/index.js
+node --env-file=.env.local apps/api-server/dist/index.js
 ```
+
+The API server on `:3000` serves everything except real-time audio. Voice
+needs the media coordinator running alongside it as a second process — the
+meeting UI connects to it directly, so without it a room opens but nobody
+hears anything:
+
+```bash
+node --env-file=.env.local apps/media-coordinator/dist/index.js
+```
+
+Then `http://localhost:3000/meeting/` for voice, or `/demo` for the typed
+UI. `GET /healthz` reports each module's real dependency state and returns
+503 when a required one is unreachable, so it is a genuine readiness signal
+rather than a liveness ping.
 
 See `infra/README.md` for the full quickstart, including why migrations
 and the running application connect as two different Postgres roles
@@ -139,10 +168,11 @@ rationale is there. New decisions get a new ADR with the next number.
 
 ## What's intentionally not here yet
 
-- Staging deployment (Sprint 1.1.3)
-- Mobile app (Sprint 1.3.1)
-- Admin web app (Phase 7)
-- Real handlers in any service (filled by their owning sprints — Wave 1:
-  identity-and-tenancy, brain, ledger)
+- Mobile app (Sprint 1.3.1) — `apps/founder-mobile` is still empty
+- Admin web as its own bundle (Phase 7) — the console is served from
+  `apps/api-server/public/admin` for now
+- Evaluation harness (Sprint 5.3)
+- Live Stripe and Cal.com integration — the code paths exist and are tested
+  against mocks, but have never run against real accounts
 
 The structure above accommodates each of these without restructuring.

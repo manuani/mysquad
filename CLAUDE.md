@@ -10,7 +10,7 @@ deliverable Claude Code is building. Founder is the product visionary; a real
 engineering team productionizes Claude Code's output.
 
 The architecture is a **modular monolith** in TypeScript: one Node process boots,
-registers 11 service modules, serves all platform traffic. Scaling is by
+registers 12 service modules, serves all platform traffic. Scaling is by
 replication, not module extraction.
 
 ## Reference documents
@@ -67,18 +67,26 @@ Concrete rules:
   module or through the event bus (`@voai/events`), not direct imports of
   internal files.
 
-### 3. The eleven components
+### 3. The components
 
 Per System Architecture §3.1 the platform has eleven major components plus
 client surfaces. `services/identity-and-tenancy` merges what was
 originally split as two modules (Issue 1, resolved — see ADR 008). The
-`services/*` directory now has eleven modules, one per component.
+`services/*` directory has twelve modules: the spec's components that live
+in-process, plus `voice-gateway`, which owns LiveKit room lifecycle and
+participant tokens (ADR 013). The spec folds that concern into Edge Gateway
+and Meeting Coordinator; it is a module here because room creation is
+tenant-scoped application logic, not infrastructure.
 
 The full list: Identity-and-Tenancy, Edge Gateway (infra-level, not in
 `services/`), Meeting Coordinator, Agent Runtime, Routing Service,
 Performance Service, Brain Service, Ledger Service, Marketplace Service
 (with Marketplace Metering sub-component), Notification Service, Admin
-Console.
+Console, Voice Gateway.
+
+Real-time audio runs in `apps/media-coordinator`, a separate process on
+:3001 — not a service module, because it holds per-meeting in-memory state
+and scales on different characteristics than HTTP traffic (§3.7).
 
 ### 4. The five data stores
 
