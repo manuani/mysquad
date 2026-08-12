@@ -22,6 +22,7 @@ import type { TenantContext } from '@voai/auth-context';
 import type { LlmMessage, PlanTier, RoutingService } from '@voai/routing';
 import type { EventBus } from '@voai/types';
 import type { PlanResolver } from './tenant-plan.js';
+import { analyseAddress } from './address.js';
 import type { AgentPersona } from './personas/sarah-cfo.js';
 import {
   Arbiter,
@@ -64,6 +65,11 @@ export interface AgentContributionInput {
   readonly teammates?: readonly Pick<AgentPersona, 'name' | 'role'>[];
   /** Forwarded to every routing/provider call for end-to-end tracing. */
   readonly requestId?: string;
+  /**
+   * How this turn was addressed. Set by `generateOrderedContributions`; a
+   * direct `generateContribution` call derives it for itself.
+   */
+  readonly register?: { readonly isSocial: boolean; readonly wasNamed: boolean };
 }
 
 /**
@@ -92,12 +98,25 @@ function assembleSystemPrompt(
   persona: AgentPersona,
   brainContext?: readonly string[],
   teammates?: readonly Pick<AgentPersona, 'name' | 'role'>[],
+  register?: { readonly isSocial: boolean; readonly wasNamed: boolean },
 ): string {
   let prompt = persona.systemPrompt;
 
   if (teammates && teammates.length > 0) {
     const teamList = teammates.map((t) => `- ${t.name}, ${t.role}`).join('\n');
     prompt += `\n\nYour actual teammates in this meeting room are:\n${teamList}\n\nIf a question is outside your lane, defer to the specific teammate above whose lane it is — by their real name and role, never an invented name.`;
+  }
+
+  // The deferral instruction above is right for work and wrong for hello.
+  // Applied to a greeting it produced an org-chart recital — "I'm Marcus, Sarah
+  // Chen is our CFO, she's the right person for financial specifics" — in reply
+  // to someone just saying hi.
+  if (register?.isSocial) {
+    prompt += `\n\nThis turn is a greeting or small talk, not a request for work. Answer as a colleague would: warmly, in a sentence or two, and in your own voice.
+
+Do not explain who does what on this team, do not tell the founder which teammate they should be talking to, and do not treat being greeted as a question aimed at the wrong person. Nobody is confused. If they said hello and asked how you are, tell them — then let them bring up what they actually want to discuss, or ask them lightly. The deferral guidance above applies to work, not to conversation.`;
+  } else if (register?.wasNamed) {
+    prompt += `\n\nThe founder addressed you by name. Answer them directly rather than deferring, even if the topic sits at the edge of your lane — you can bring in a teammate's perspective, but you are the one being spoken to.`;
   }
 
   if (brainContext && brainContext.length > 0) {
@@ -214,7 +233,16 @@ A ${persona.role} should respond when the topic directly touches their domain. S
     const result = await this.routingService.complete(
       tenantContext,
       {
-        systemPrompt: assembleSystemPrompt(persona, input.brainContext, input.teammates),
+        systemPrompt: assembleSystemPrompt(
+          persona,
+          input.brainContext,
+          input.teammates,
+          input.register ??
+            (() => {
+              const a = analyseAddress(input.message, [persona]);
+              return { isSocial: a.isSocial, wasNamed: a.addressed.includes(persona.id) };
+            })(),
+        ),
         messages,
         requestId: input.requestId,
       },
@@ -367,6 +395,9 @@ A ${persona.role} should respond when the topic directly touches their domain. S
   }> {
     const maxSpeakers = options?.maxSpeakers ?? DEFAULT_MAX_SPEAKERS;
 
+    // Who was named, and whether this is conversation rather than a request.
+    const address = analyseAddress(input.message, personas);
+
     // ── Step 1: gate all personas in parallel ────────────────────────────────
     const gateResults: ResponseGateResult[] = options?.skipGate
       ? personas.map(() => ({ shouldRespond: true, relevanceScore: 1.0, reason: 'gate skipped' }))
@@ -385,10 +416,15 @@ A ${persona.role} should respond when the topic directly touches their domain. S
 
     personas.forEach((persona, i) => {
       const gate = gateResults[i]!;
-      if (gate.shouldRespond && gate.relevanceScore >= GATE_PASS_THRESHOLD) {
+      // Being named by the founder overrides the gate outright. The gate asks
+      // only whether a topic touches someone's domain, and "Hello, Sarah"
+      // touches nobody's — so the person actually spoken to was being filtered
+      // out by a question that was never the right one to ask of a greeting.
+      const wasNamed = address.addressed.includes(persona.id);
+      if (wasNamed || (gate.shouldRespond && gate.relevanceScore >= GATE_PASS_THRESHOLD)) {
         passing.push({
           persona: { id: persona.id, name: persona.name, role: persona.role },
-          relevanceScore: gate.relevanceScore,
+          relevanceScore: wasNamed ? Math.max(gate.relevanceScore, 1.0) : gate.relevanceScore,
         });
       } else {
         skipped.push({ persona, gateResult: gate });
@@ -396,7 +432,13 @@ A ${persona.role} should respond when the topic directly touches their domain. S
     });
 
     // ── Step 2: rank passing personas ────────────────────────────────────────
-    const ranked = this.arbiter.rank(passing, maxSpeakers);
+    // A greeting wants one colleague answering, not the whole room introducing
+    // itself in turn. When the founder greets everyone, the arbiter's usual
+    // ordering picks who; when they greet someone by name, that person answers.
+    const socialSpeakerCap = address.addressed.length > 0 ? address.addressed.length : 1;
+    const effectiveMaxSpeakers = address.isSocial ? socialSpeakerCap : maxSpeakers;
+
+    const ranked = this.arbiter.rank(passing, effectiveMaxSpeakers, address.addressed);
 
     // ── Step 3: generate sequentially, accumulating prior responses ──────────
     const allPersonaNames = personas.map((p) => ({ name: p.name, role: p.role }));
@@ -426,6 +468,10 @@ A ${persona.role} should respond when the topic directly touches their domain. S
         ...input,
         brainContext: priorContext,
         teammates: allPersonaNames.filter((t) => t.name !== persona.name),
+        register: {
+          isSocial: address.isSocial,
+          wasNamed: address.addressed.includes(persona.id),
+        },
       });
 
       priorResponses.push(contribution.content);

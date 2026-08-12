@@ -53,8 +53,10 @@ export class Arbiter {
   rank(
     gatedPersonas: readonly GatedPersona[],
     maxSpeakers = DEFAULT_MAX_SPEAKERS,
+    addressed: readonly string[] = [],
   ): RankedPersona[] {
     const now = Date.now();
+    const addressedSet = new Set(addressed);
 
     const scored: RankedPersona[] = gatedPersonas.map(({ persona, relevanceScore }) => {
       const lastSpokeMs = this.lastSpoke.get(persona.id);
@@ -66,13 +68,24 @@ export class Arbiter {
       return { persona, relevanceScore, silenceScore, compositeScore };
     });
 
-    // Sort descending by composite score, tie-break by persona id for stability
-    scored.sort((a, b) =>
-      b.compositeScore !== a.compositeScore
-        ? b.compositeScore - a.compositeScore
-        : a.persona.id.localeCompare(b.persona.id),
-    );
+    // Being named outranks any score. Scoring alone put the addressed persona
+    // last: with nobody having spoken the silence scores tie, a greeting scores
+    // low relevance for everyone, and selection fell through to the
+    // alphabetical tie-break — so "Hello, Sarah" was answered by Marcus and
+    // Priya while Sarah stayed silent.
+    scored.sort((a, b) => {
+      const aNamed = addressedSet.has(a.persona.id);
+      const bNamed = addressedSet.has(b.persona.id);
+      if (aNamed !== bNamed) return aNamed ? -1 : 1;
 
-    return scored.slice(0, maxSpeakers);
+      return b.compositeScore !== a.compositeScore
+        ? b.compositeScore - a.compositeScore
+        : a.persona.id.localeCompare(b.persona.id);
+    });
+
+    // Never cut someone who was named, even past the speaker cap — being
+    // ignored after being addressed by name is the worst failure here.
+    const cap = Math.max(maxSpeakers, addressedSet.size);
+    return scored.slice(0, cap);
   }
 }

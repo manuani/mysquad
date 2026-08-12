@@ -63,7 +63,9 @@ describe('AgentRuntime', () => {
     }));
 
     const runtime = new AgentRuntime(routingService);
-    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, { message: 'hi' });
+    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
+      message: 'What is our current runway?',
+    });
 
     expect(routingService.complete).toHaveBeenCalledWith(
       TENANT_CONTEXT,
@@ -72,7 +74,7 @@ describe('AgentRuntime', () => {
       undefined,
       // The founder's message goes through so routing can size the model to the
       // task, per Architecture §5.6.
-      expect.objectContaining({ message: 'hi' }),
+      expect.objectContaining({ message: 'What is our current runway?' }),
     );
   });
 
@@ -161,7 +163,7 @@ describe('AgentRuntime', () => {
 
     const runtime = new AgentRuntime(routingService);
     await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
-      message: 'hi',
+      message: 'What is our current runway?',
       brainContext: [],
     });
 
@@ -323,5 +325,41 @@ describe('AgentRuntime', () => {
         expect(results[0]!.gateResult?.relevanceScore).toBe(0.8);
       });
     });
+  });
+});
+
+describe('conversational register', () => {
+  // The founder said "Hello, Sarah" and got an org-chart recital back, because
+  // the persona prompt tells each agent to defer to the right teammate when a
+  // topic is outside their lane — guidance meant for work, applied to hello.
+  async function promptFor(message: string) {
+    let captured: string | undefined;
+    const routingService = makeFakeRoutingService(async (request) => {
+      captured = request.systemPrompt;
+      return { content: 'ok', model: 'fake-model', usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    await new AgentRuntime(routingService).generateContribution(
+      TENANT_CONTEXT,
+      SARAH_CFO_PERSONA,
+      { message },
+    );
+    return captured ?? '';
+  }
+
+  it('tells a greeted persona not to recite the org chart', async () => {
+    const prompt = await promptFor('Hello, Sarah.');
+    expect(prompt).toContain('greeting or small talk');
+    expect(prompt).toContain('Do not explain who does what on this team');
+  });
+
+  it('leaves a work request on the normal footing', async () => {
+    const prompt = await promptFor('Should we cut marketing or raise a bridge round?');
+    expect(prompt).not.toContain('greeting or small talk');
+  });
+
+  it('treats a greeting with a real question attached as work', async () => {
+    const prompt = await promptFor("Hi Sarah, what's our runway looking like?");
+    expect(prompt).not.toContain('greeting or small talk');
+    expect(prompt).toContain('addressed you by name');
   });
 });
