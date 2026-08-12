@@ -28,6 +28,8 @@ export type {
   TIER_COST_MICRO_PER_1K,
 } from './provider.js';
 export { computeCostMicro } from './provider.js';
+export { classifyComplexity } from './classify-complexity.js';
+export type { ClassifyInput, ComplexitySignals, TaskComplexity } from './classify-complexity.js';
 export { AnthropicProvider } from './anthropic-provider.js';
 export { OpenAIProvider } from './openai-provider.js';
 export { BedrockProvider } from './bedrock-provider.js';
@@ -84,13 +86,21 @@ export const routingModule: ModuleDefinition = {
           reason: 'no LLM provider is configured — set ANTHROPIC_API_KEY',
         });
       }
-      const missing = providers.filter((p) => !p.isConfigured);
+
+      // Report by tier, not by vendor. A missing vendor is only a problem if it
+      // leaves a tier with nothing behind it; naming absent vendors instead
+      // implies you must run several, when one provider covering every tier is
+      // a complete, healthy configuration.
+      const unreachable = [...new Set(providers.map((p) => p.tier))].filter(
+        (tier) => !configured.some((p) => p.tier === tier),
+      );
+
       return Promise.resolve(
-        missing.length === 0
+        unreachable.length === 0
           ? { status: 'healthy' }
           : {
               status: 'degraded',
-              reason: `no failover for: ${[...new Set(missing.map((p) => p.id))].join(', ')}`,
+              reason: `no provider configured for tier(s): ${unreachable.join(', ')}`,
             },
       );
     };

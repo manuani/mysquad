@@ -19,8 +19,9 @@
  */
 
 import type { TenantContext } from '@voai/auth-context';
-import type { LlmMessage, RoutingService } from '@voai/routing';
+import type { LlmMessage, PlanTier, RoutingService } from '@voai/routing';
 import type { EventBus } from '@voai/types';
+import type { PlanResolver } from './tenant-plan.js';
 import type { AgentPersona } from './personas/sarah-cfo.js';
 import {
   Arbiter,
@@ -110,7 +111,19 @@ function assembleSystemPrompt(
 export class AgentRuntime {
   private readonly arbiter = new Arbiter();
 
-  constructor(private readonly routingService: RoutingService) {}
+  /**
+   * `resolvePlan` decides which model tiers this tenant may reach. When it is
+   * omitted (unit tests, callers with no database), routing falls back to its
+   * own `'starter'` default — the behaviour before plans were wired up.
+   */
+  constructor(
+    private readonly routingService: RoutingService,
+    private readonly resolvePlan?: PlanResolver,
+  ) {}
+
+  private async planFor(tenantContext: TenantContext): Promise<PlanTier | undefined> {
+    return this.resolvePlan ? this.resolvePlan(tenantContext) : undefined;
+  }
 
   /**
    * Fast gate: asks Claude Haiku whether this persona's role is relevant to
@@ -143,12 +156,20 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 A ${persona.role} should respond when the topic directly touches their domain. Score > 0.4 means they should respond.`;
 
     try {
-      const result = await this.routingService.complete(tenantContext, {
-        systemPrompt: 'You are a relevance classifier. Output only valid JSON.',
-        messages: [{ role: 'user', content: gatePrompt }],
-        maxTokens: 80,
-        requestId,
-      });
+      const result = await this.routingService.complete(
+        tenantContext,
+        {
+          systemPrompt: 'You are a relevance classifier. Output only valid JSON.',
+          messages: [{ role: 'user', content: gatePrompt }],
+          maxTokens: 80,
+          requestId,
+        },
+        await this.planFor(tenantContext),
+        // Fixed ~80 token JSON verdict, however hard the question being judged.
+        // Stated rather than classified, or the gate would size itself to the
+        // founder's question instead of to the judging.
+        { message: gatePrompt, complexity: 'routine' },
+      );
 
       const parsed = JSON.parse(result.content.trim()) as {
         shouldRespond: boolean;
@@ -190,11 +211,17 @@ A ${persona.role} should respond when the topic directly touches their domain. S
       { role: 'user' as const, content: input.message },
     ];
 
-    const result = await this.routingService.complete(tenantContext, {
-      systemPrompt: assembleSystemPrompt(persona, input.brainContext, input.teammates),
-      messages,
-      requestId: input.requestId,
-    });
+    const result = await this.routingService.complete(
+      tenantContext,
+      {
+        systemPrompt: assembleSystemPrompt(persona, input.brainContext, input.teammates),
+        messages,
+        requestId: input.requestId,
+      },
+      await this.planFor(tenantContext),
+      // The contribution itself — size the model to what the founder asked.
+      { message: input.message },
+    );
 
     return {
       agentName: persona.name,

@@ -68,6 +68,32 @@ describe('AgentRuntime', () => {
     expect(routingService.complete).toHaveBeenCalledWith(
       TENANT_CONTEXT,
       expect.objectContaining({ systemPrompt: SARAH_CFO_PERSONA.systemPrompt }),
+      // No plan resolver was supplied, so routing keeps its 'starter' default.
+      undefined,
+      // The founder's message goes through so routing can size the model to the
+      // task, per Architecture §5.6.
+      expect.objectContaining({ message: 'hi' }),
+    );
+  });
+
+  it('sizes the model to the question, not just the plan', async () => {
+    const routingService = makeFakeRoutingService(async () => ({
+      content: 'ok',
+      model: 'fake-model',
+      usage: { inputTokens: 1, outputTokens: 1 },
+    }));
+
+    const runtime = new AgentRuntime(routingService, async () => 'enterprise');
+    await runtime.generateContribution(TENANT_CONTEXT, SARAH_CFO_PERSONA, {
+      message: 'Should we cut marketing or raise a bridge round?',
+    });
+
+    // The resolved plan is the ceiling; routing classifies the message within it.
+    expect(routingService.complete).toHaveBeenCalledWith(
+      TENANT_CONTEXT,
+      expect.anything(),
+      'enterprise',
+      expect.objectContaining({ message: 'Should we cut marketing or raise a bridge round?' }),
     );
   });
 

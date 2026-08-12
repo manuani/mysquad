@@ -21,6 +21,7 @@ import type { EventBus, Logger } from '@voai/types';
 import { matchExperts } from '@voai/marketplace';
 import { recordMeteringEvent } from '@voai/marketplace-metering';
 import { AgentRuntime } from './agent-runtime.js';
+import { createPlanResolver } from './tenant-plan.js';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
 import { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
@@ -75,7 +76,9 @@ export function buildAgentRuntimeRouter(
   events: EventBus,
 ): Router {
   const router = Router();
-  const runtime = new AgentRuntime(routingService);
+  // Without a resolver every tenant routes at the 'starter' ceiling, which
+  // is what left the advanced and high tiers unreachable.
+  const runtime = new AgentRuntime(routingService, createPlanResolver(postgres, log));
 
   router.post('/contributions', async (req: Request, res: Response) => {
     try {
