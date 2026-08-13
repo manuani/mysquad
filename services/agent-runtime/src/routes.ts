@@ -131,7 +131,7 @@ export function buildAgentRuntimeRouter(
   router.post('/contributions/roster', async (req: Request, res: Response) => {
     try {
       const tenantContext = tenantContextFromRequest(req);
-      const body = req.body as { message?: unknown; sessionId?: unknown };
+      const body = req.body as { message?: unknown; sessionId?: unknown; mode?: unknown };
       if (typeof body.message !== 'string' || body.message.trim().length === 0) {
         throw new ValidationError('message is required');
       }
@@ -147,10 +147,12 @@ export function buildAgentRuntimeRouter(
       });
 
       const requestId = (res.locals['requestId'] as string | undefined) ?? undefined;
+      const mode = body.mode === 'voice' ? 'voice' : 'typed';
+
       const { ordered, skipped } = await runtime.generateOrderedContributions(
         tenantContext,
         ROSTER,
-        { message: body.message, brainContext, requestId },
+        { message: body.message, brainContext, requestId, mode },
       );
 
       postgres

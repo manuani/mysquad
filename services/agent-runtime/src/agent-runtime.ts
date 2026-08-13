@@ -70,6 +70,12 @@ export interface AgentContributionInput {
    * direct `generateContribution` call derives it for itself.
    */
   readonly register?: { readonly isSocial: boolean; readonly wasNamed: boolean };
+  /**
+   * 'voice' when the founder is speaking rather than typing. A reply that
+   * reads well as a memo is unbearable to sit through spoken aloud — 250 words
+   * is roughly 90 seconds of uninterrupted synthesised speech.
+   */
+  readonly mode?: 'voice' | 'typed';
 }
 
 /**
@@ -99,6 +105,7 @@ function assembleSystemPrompt(
   brainContext?: readonly string[],
   teammates?: readonly Pick<AgentPersona, 'name' | 'role'>[],
   register?: { readonly isSocial: boolean; readonly wasNamed: boolean },
+  mode?: 'voice' | 'typed',
 ): string {
   let prompt = persona.systemPrompt;
 
@@ -117,6 +124,14 @@ function assembleSystemPrompt(
 Do not explain who does what on this team, do not tell the founder which teammate they should be talking to, and do not treat being greeted as a question aimed at the wrong person. Nobody is confused. If they said hello and asked how you are, tell them — then let them bring up what they actually want to discuss, or ask them lightly. The deferral guidance above applies to work, not to conversation.`;
   } else if (register?.wasNamed) {
     prompt += `\n\nThe founder addressed you by name. Answer them directly rather than deferring, even if the topic sits at the edge of your lane — you can bring in a teammate's perspective, but you are the one being spoken to.`;
+  }
+
+  if (mode === 'voice') {
+    prompt += `\n\nThe founder is speaking, not typing, and your reply will be read aloud. Say the one thing that matters most and stop — two or three sentences, rarely more. This is a conversation, not a briefing.
+
+Never use headings, numbered lists, bullet points or bold text; none of it survives being spoken. If you need three things from the founder, ask for the most important one and let them answer before you ask the next. Do not restate their question back to them, and do not preface with what you are about to do — just say it.
+
+If you genuinely cannot help without more information, ask one short question. A spoken reply that runs past about forty seconds has already lost them.`;
   }
 
   if (brainContext && brainContext.length > 0) {
@@ -242,7 +257,12 @@ A ${persona.role} should respond when the topic directly touches their domain. S
               const a = analyseAddress(input.message, [persona]);
               return { isSocial: a.isSocial, wasNamed: a.addressed.includes(persona.id) };
             })(),
+          input.mode,
         ),
+        // A hard ceiling as well as an instruction. Prompt guidance alone lets
+        // a model run long on a question it finds interesting, and in voice
+        // that lands as a monologue nobody can stop.
+        ...(input.mode === 'voice' ? { maxTokens: 220 } : {}),
         messages,
         requestId: input.requestId,
       },
@@ -472,6 +492,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
           isSocial: address.isSocial,
           wasNamed: address.addressed.includes(persona.id),
         },
+        mode: input.mode,
       });
 
       priorResponses.push(contribution.content);

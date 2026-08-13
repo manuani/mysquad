@@ -430,6 +430,12 @@
             userId,
             sessionToken,
             livekitRoomName: currentRoomName,
+            // Names the transcriber would otherwise guess at. Set
+            // localStorage 'voai_vocabulary' to a comma-separated list of your
+            // company and product names — without it "iTrendFast" comes back as
+            // "iPhone, iPad and Macomb".
+            vocabulary: (localStorage.getItem('voai_vocabulary') ?? '')
+              .split(',').map((t) => t.trim()).filter(Boolean),
           }),
         }).then(async (r) => {
           if (!r.ok) { console.warn('MC session start failed', r.status, await r.text()); return; }
@@ -480,13 +486,93 @@
         recorder.ondataavailable = (e) => {
           if (!e.data || e.data.size < 10) return;
           if (!audioWs || audioWs.readyState !== WebSocket.OPEN || !micEnabled) return;
-          if (ttsSpeaking) return; // don't transcribe the advisors' own voices
+          // Audio keeps flowing while advisors speak. Dropping it here is what
+          // made them impossible to interrupt — the founder could talk over a
+          // monologue and nothing heard them. Echo of the advisor's own voice is
+          // suppressed by the barge-in detector's echo-cancelled stream rather
+          // than by going deaf.
           audioWs.send(e.data);
         };
         recorder.start(250); // 250ms timeslices
         console.log('STT MediaRecorder started', mimeType);
 
-        audioProcessor = { recorder, stop() { recorder.stop(); } };
+        const bargeIn = await startBargeInDetection();
+
+        audioProcessor = {
+          recorder,
+          stop() {
+            recorder.stop();
+            bargeIn?.stop();
+          },
+        };
+      }
+
+      /**
+       * Watches for the founder starting to talk while an advisor is speaking,
+       * and cuts the advisor off when they do.
+       *
+       * This needs its own stream. The STT capture deliberately runs with echo
+       * cancellation off — with LiveKit's WebRTC pipeline active, Chrome's
+       * canceller treats the founder's own voice as echo and removes it. But
+       * for barge-in the opposite is required: without cancellation the
+       * advisor's synthesised voice comes back through the speakers and reads
+       * as the founder interrupting, so the advisors would cut themselves off
+       * mid-sentence.
+       */
+      async function startBargeInDetection() {
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
+        } catch (e) {
+          console.warn('barge-in detection unavailable — advisors will not be interruptible', e);
+          return null;
+        }
+
+        const ctx = new AudioContext();
+        await ctx.resume();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+
+        const buf = new Float32Array(analyser.fftSize);
+        // Speech sits well above room noise on an AGC'd stream. Requiring a run
+        // of loud frames keeps a cough, a keystroke or a door from silencing an
+        // advisor mid-sentence.
+        const SPEECH_RMS = 0.025;
+        const FRAMES_TO_CONFIRM = 3; // ~150ms of continuous speech
+        let loudFrames = 0;
+        let raf = null;
+
+        function tick() {
+          raf = requestAnimationFrame(tick);
+          if (!ttsSpeaking || !micEnabled) { loudFrames = 0; return; }
+
+          analyser.getFloatTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+          const rms = Math.sqrt(sum / buf.length);
+
+          if (rms > SPEECH_RMS) {
+            if (++loudFrames >= FRAMES_TO_CONFIRM) {
+              loudFrames = 0;
+              interruptAdvisors('founder started speaking');
+            }
+          } else {
+            loudFrames = 0;
+          }
+        }
+        tick();
+
+        return {
+          stop() {
+            if (raf) cancelAnimationFrame(raf);
+            stream.getTracks().forEach((t) => t.stop());
+            void ctx.close();
+          },
+        };
       }
 
       function handleMCMessage(event) {
@@ -523,17 +609,38 @@
         speechPlaying = true;
         while (speechQueue.length) {
           const c = speechQueue.shift();
-          ttsSpeaking = true;   // gate STT for the whole utterance
+          ttsSpeaking = true;
           try {
             if (c.audioMp3) await playMp3(c.audioMp3);
             else await speakAs(c.agentName, c.text);
           } catch (e) {
+            if (e && e.interrupted) break; // founder started talking
             console.warn('speech failed, falling back', e);
             try { await speakAs(c.agentName, c.text); } catch {}
+          } finally {
+            ttsSpeaking = false;
           }
-          ttsSpeaking = false;
         }
         speechPlaying = false;
+      }
+
+      /**
+       * Stops whoever is talking and drops anything queued behind them.
+       *
+       * Being unable to interrupt is what made the advisors feel like a
+       * recording rather than colleagues: two of them delivered several hundred
+       * words each and there was no way to cut in and correct the premise.
+       */
+      function interruptAdvisors(reason) {
+        if (!ttsSpeaking && speechQueue.length === 0) return;
+        speechQueue.length = 0;
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+        }
+        try { window.speechSynthesis?.cancel(); } catch {}
+        ttsSpeaking = false;
+        console.log('advisors interrupted:', reason);
       }
 
       // Chrome blocks programmatic audio playback unless the page has had a
@@ -547,14 +654,20 @@
         } catch { /* non-fatal */ }
       }
 
+      let currentAudio = null;
+
       function playMp3(b64) {
         return new Promise((resolve, reject) => {
           const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
           const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
           const audio = new Audio(url);
-          const done = () => { URL.revokeObjectURL(url); resolve(); };
-          audio.onended = done;
-          audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('mp3 playback failed')); };
+          currentAudio = audio;
+          const cleanup = () => { URL.revokeObjectURL(url); if (currentAudio === audio) currentAudio = null; };
+          audio.onended = () => { cleanup(); resolve(); };
+          // pause() fires no 'ended', so an interruption resolves here instead
+          // of leaving the queue drain awaiting a promise that never settles.
+          audio.onpause = () => { if (!audio.ended) { cleanup(); const e = new Error('interrupted'); e.interrupted = true; reject(e); } };
+          audio.onerror = () => { cleanup(); reject(new Error('mp3 playback failed')); };
           audio.play().catch(reject);
         });
       }

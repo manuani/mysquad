@@ -123,12 +123,17 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
     userId?: string;
     sessionToken?: string;
     livekitRoomName?: string;
+    /** Company and product names to boost in transcription. */
+    vocabulary?: unknown;
   };
   if (!body.tenantId || !body.userId || !body.sessionToken) {
     res.status(400).json({ error: 'tenantId, userId, sessionToken required' });
     return;
   }
   const livekitRoomName = typeof body.livekitRoomName === 'string' ? body.livekitRoomName : undefined;
+  const vocabulary = Array.isArray(body.vocabulary)
+    ? body.vocabulary.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).slice(0, 50)
+    : undefined;
 
   const authHeaders = {
     'x-tenant-id': body.tenantId,
@@ -145,6 +150,7 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
       apiServerUrl: config.apiServerUrl,
       authHeaders,
       livekitRoomName,
+      vocabulary,
       publisher,
       selfBaseUrl: config.selfBaseUrl,
       onContributions: (contributions) => {

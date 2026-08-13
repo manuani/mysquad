@@ -16,6 +16,7 @@ import type { TtsClient } from './tts.js';
 import type { WhipPublisher } from './whip-publisher.js';
 import { voiceForPersona } from './voice-personas.js';
 import { createTurnDetector } from './turn-detector.js';
+import { toSpeakable } from './speakable.js';
 
 export interface PipelineContribution {
   readonly agentName: string;
@@ -53,7 +54,21 @@ export interface PipelineOptions {
    * conversations, where the right pause length is a feel judgement.
    */
   readonly turnSettleMs?: number;
+  /**
+   * Names the transcriber would otherwise mishear — the company, its products,
+   * the personas in the room. "iTrendFast" came back as "iPhone, iPad, and
+   * Macomb" without this, and the advisors then reasoned confidently about
+   * Apple's device lineup.
+   */
+  readonly vocabulary?: readonly string[];
 }
+
+/**
+ * Persona names are always worth boosting: the founder addresses them by name,
+ * and being named is what decides who answers, so mishearing one sends the
+ * wrong advisor.
+ */
+const PERSONA_VOCABULARY = ['Sarah', 'Sarah Chen', 'Priya', 'Priya Reddy', 'Marcus', 'Marcus Webb'];
 
 export function createPipelineSession(
   stt: SttClient,
@@ -71,7 +86,10 @@ export function createPipelineSession(
       const response = await fetch(`${opts.apiServerUrl}/v1/agent-runtime/contributions/roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...opts.authHeaders },
-        body: JSON.stringify({ message: text, sessionId: opts.sessionId }),
+        // 'voice' changes how advisors answer: spoken replies must be short
+        // enough to listen to. A 250-word contribution is a fine memo and 90
+        // seconds of unbroken speech.
+        body: JSON.stringify({ message: text, sessionId: opts.sessionId, mode: 'voice' }),
       });
 
       if (!response.ok) {
@@ -96,7 +114,13 @@ export function createPipelineSession(
             let audio: Buffer | null = null;
             if (voice) {
               try {
-                audio = await tts.synthesise(c.contribution.content, voice.elevenLabsVoiceId);
+                // Speak the words, not the markup. Advisors are told to avoid
+                // formatting in voice mode and mostly do, but stray emphasis
+                // still lands as read-aloud asterisks.
+                audio = await tts.synthesise(
+                  toSpeakable(c.contribution.content),
+                  voice.elevenLabsVoiceId,
+                );
               } catch (ttsErr) {
                 opts.onError(ttsErr instanceof Error ? ttsErr : new Error(String(ttsErr)));
               }
@@ -161,6 +185,7 @@ export function createPipelineSession(
       turns.onTranscript(text, isFinal, speechFinal);
     },
     () => turns.onUtteranceEnd(),
+    [...PERSONA_VOCABULARY, ...(opts.vocabulary ?? [])],
   );
 
   return {

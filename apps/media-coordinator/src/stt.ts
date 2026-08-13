@@ -26,7 +26,15 @@ export type OnTranscript = (text: string, isFinal: boolean, speechFinal: boolean
 export type OnUtteranceEnd = () => void;
 
 export interface SttClient {
-  startSession(onTranscript: OnTranscript, onUtteranceEnd?: OnUtteranceEnd): SttSession;
+  /**
+   * `vocabulary` carries names the model would otherwise mishear — the
+   * company, its products, the people in the room.
+   */
+  startSession(
+    onTranscript: OnTranscript,
+    onUtteranceEnd?: OnUtteranceEnd,
+    vocabulary?: readonly string[],
+  ): SttSession;
 }
 
 export function createSttClient(apiKey: string | undefined): SttClient {
@@ -44,7 +52,7 @@ export function createSttClient(apiKey: string | undefined): SttClient {
 
   const deepgram = createClient(apiKey);
 
-  const DG_OPTS = {
+  const BASE_DG_OPTS = {
     model: 'nova-2',
     language: 'en',
     smart_format: true,
@@ -54,8 +62,25 @@ export function createSttClient(apiKey: string | undefined): SttClient {
     // No encoding/sample_rate — browser sends WebM/Opus, Deepgram auto-detects
   } as const;
 
+  /**
+   * Product and company names a general model has never seen, boosted so it
+   * stops reaching for something familiar. Observed live: "iTrendFast" came
+   * back as "iPhone, iPad, and Macomb", and the advisors then reasoned at
+   * length about Apple's device lineup — a transcription error became a
+   * confidently wrong conversation.
+   *
+   * `keywords` takes term:intensity pairs. Boost is deliberately moderate:
+   * pushed too hard, a model starts hearing the term in unrelated audio.
+   */
+  function keywordsFor(vocabulary: readonly string[]): string[] {
+    return vocabulary
+      .map((term) => term.trim())
+      .filter(Boolean)
+      .map((term) => `${term}:2`);
+  }
+
   return {
-    startSession(onTranscript, onUtteranceEnd) {
+    startSession(onTranscript, onUtteranceEnd, vocabulary) {
       const emitter = new EventEmitter() as SttSession;
       let closed = false;
       let conn: ReturnType<typeof deepgram.listen.live> | null = null;
@@ -78,7 +103,10 @@ export function createSttClient(apiKey: string | undefined): SttClient {
 
       function connect() {
         if (closed) return;
-        const c = deepgram.listen.live(DG_OPTS);
+        const keywords = keywordsFor(vocabulary ?? []);
+        const c = deepgram.listen.live(
+          keywords.length > 0 ? { ...BASE_DG_OPTS, keywords } : BASE_DG_OPTS,
+        );
         conn = c;
         connOpen = false;
 
