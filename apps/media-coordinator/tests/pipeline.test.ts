@@ -4,13 +4,20 @@ import type { SttClient, SttSession } from '../src/stt.js';
 import type { TtsClient } from '../src/tts.js';
 import { EventEmitter } from 'node:events';
 
-function makeStt(onConnect: (emit: (text: string, isFinal: boolean) => void) => void): SttClient {
+/**
+ * `emit` mirrors Deepgram: (text, isFinal, speechFinal). Turns dispatch only
+ * once speech has settled, so tests that expect a dispatch pass speechFinal and
+ * run with `turnSettleMs: 0` — see makeOpts.
+ */
+function makeStt(
+  onConnect: (emit: (text: string, isFinal: boolean, speechFinal?: boolean) => void) => void,
+): SttClient {
   return {
     startSession(onTranscript) {
       const emitter = new EventEmitter() as SttSession;
       emitter.sendAudio = vi.fn();
       emitter.close = vi.fn();
-      onConnect(onTranscript);
+      onConnect((text, isFinal, speechFinal = false) => onTranscript(text, isFinal, speechFinal));
       return emitter;
     },
   };
@@ -26,6 +33,9 @@ function makeTts(audioMap: Record<string, Buffer> = {}): TtsClient {
 
 function makeOpts(overrides: Partial<Parameters<typeof createPipelineSession>[2]> = {}) {
   return {
+    // Dispatch as soon as speech ends; the settle window has its own
+    // coverage in turn-detector.test.ts and would only add latency here.
+    turnSettleMs: 0,
     sessionId: 'sess-1',
     tenantId: 'tenant-1',
     userId: 'user-1',
@@ -45,7 +55,7 @@ function makeOpts(overrides: Partial<Parameters<typeof createPipelineSession>[2]
 
 describe('createPipelineSession', () => {
   it('returns a session with sendAudio and close', () => {
-    let emitFn: ((text: string, isFinal: boolean) => void) | undefined;
+    let emitFn: ((text: string, isFinal: boolean, speechFinal?: boolean) => void) | undefined;
     const stt = makeStt((e) => {
       emitFn = e;
     });
@@ -56,7 +66,7 @@ describe('createPipelineSession', () => {
 
   it('calls onTranscriptChunk for each STT event', () => {
     const onTranscriptChunk = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => {
       emitFn = e;
     });
@@ -65,13 +75,13 @@ describe('createPipelineSession', () => {
     emitFn('hello', false);
     expect(onTranscriptChunk).toHaveBeenCalledWith('hello', false);
 
-    emitFn('hello world', true);
+    emitFn('hello world', true, true);
     expect(onTranscriptChunk).toHaveBeenCalledWith('hello world', true);
   });
 
   it('calls onError when agent-runtime fetch fails', async () => {
     const onError = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => {
       emitFn = e;
     });
@@ -80,7 +90,7 @@ describe('createPipelineSession', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connection refused')));
 
     createPipelineSession(stt, makeTts(), makeOpts({ onError }));
-    emitFn('what is our burn rate', true);
+    emitFn('what is our burn rate', true, true);
 
     // Wait for async processing
     await new Promise((r) => setTimeout(r, 50));
@@ -93,7 +103,7 @@ describe('createPipelineSession', () => {
 
   it('calls onContributions after successful fetch', async () => {
     const onContributions = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => {
       emitFn = e;
     });
@@ -117,7 +127,7 @@ describe('createPipelineSession', () => {
     );
 
     createPipelineSession(stt, makeTts(), makeOpts({ onContributions }));
-    emitFn('what is our runway', true);
+    emitFn('what is our runway', true, true);
 
     await new Promise((r) => setTimeout(r, 50));
     expect(onContributions).toHaveBeenCalledWith(
@@ -132,7 +142,7 @@ describe('createPipelineSession', () => {
   it('skips skipped contributions when building TTS', async () => {
     const onContributions = vi.fn();
     const tts = { synthesise: vi.fn().mockResolvedValue(Buffer.from('audio')) };
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => {
       emitFn = e;
     });
@@ -157,7 +167,7 @@ describe('createPipelineSession', () => {
     );
 
     createPipelineSession(stt, tts, makeOpts({ onContributions }));
-    emitFn('question', true);
+    emitFn('question', true, true);
 
     await new Promise((r) => setTimeout(r, 50));
     // TTS should only be called for the non-skipped persona
@@ -170,7 +180,7 @@ describe('createPipelineSession', () => {
 
   it('onError called when agent-runtime returns non-ok status', async () => {
     const onError = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => {
       emitFn = e;
     });
@@ -178,7 +188,7 @@ describe('createPipelineSession', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
 
     createPipelineSession(stt, makeTts(), makeOpts({ onError }));
-    emitFn('question', true);
+    emitFn('question', true, true);
 
     await new Promise((r) => setTimeout(r, 50));
     expect(onError).toHaveBeenCalledWith(
@@ -190,7 +200,7 @@ describe('createPipelineSession', () => {
 
   it('calls publisher.publishAudio for each contribution when livekitRoomName is set', async () => {
     const onContributions = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => { emitFn = e; });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -212,7 +222,7 @@ describe('createPipelineSession', () => {
       selfBaseUrl: 'http://mc.example.com',
     }));
 
-    emitFn('what is our runway', true);
+    emitFn('what is our runway', true, true);
     await new Promise((r) => setTimeout(r, 50));
 
     expect(publishAudio).toHaveBeenCalledWith(expect.objectContaining({
@@ -230,7 +240,7 @@ describe('createPipelineSession', () => {
   it('delivers contribution even when publishAudio throws (non-fatal)', async () => {
     const onContributions = vi.fn();
     const onError = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => { emitFn = e; });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -252,7 +262,7 @@ describe('createPipelineSession', () => {
       selfBaseUrl: 'http://mc.example.com',
     }));
 
-    emitFn('question', true);
+    emitFn('question', true, true);
     await new Promise((r) => setTimeout(r, 50));
 
     // Contribution still delivered with ingressId null
@@ -267,7 +277,7 @@ describe('createPipelineSession', () => {
 
   it('sets ingressId to null when no publisher configured', async () => {
     const onContributions = vi.fn();
-    let emitFn!: (text: string, isFinal: boolean) => void;
+    let emitFn!: (text: string, isFinal: boolean, speechFinal?: boolean) => void;
     const stt = makeStt((e) => { emitFn = e; });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -280,7 +290,7 @@ describe('createPipelineSession', () => {
     }));
 
     createPipelineSession(stt, makeTts(), makeOpts({ onContributions }));
-    emitFn('question', true);
+    emitFn('question', true, true);
 
     await new Promise((r) => setTimeout(r, 50));
     const [batch] = onContributions.mock.calls[0] as [ReturnType<typeof onContributions.mock.calls>[0]];

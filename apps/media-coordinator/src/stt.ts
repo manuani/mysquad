@@ -14,15 +14,26 @@ export interface SttSession extends EventEmitter {
   close(): void;
 }
 
+/**
+ * `speechFinal` is Deepgram's endpointing verdict — it believes the utterance
+ * ended, as opposed to `isFinal`, which only means the text will not be
+ * revised. The distinction is what separates a pause inside a sentence from the
+ * end of a turn; see turn-detector.ts.
+ */
+export type OnTranscript = (text: string, isFinal: boolean, speechFinal: boolean) => void;
+
+/** Fired when silence exceeds `utterance_end_ms` server-side. */
+export type OnUtteranceEnd = () => void;
+
 export interface SttClient {
-  startSession(onTranscript: (text: string, isFinal: boolean) => void): SttSession;
+  startSession(onTranscript: OnTranscript, onUtteranceEnd?: OnUtteranceEnd): SttSession;
 }
 
 export function createSttClient(apiKey: string | undefined): SttClient {
   if (!apiKey) {
     // Stub: emit nothing — typed mode transcript comes via API
     return {
-      startSession(onTranscript) {
+      startSession() {
         const emitter = new EventEmitter() as SttSession;
         emitter.sendAudio = () => {};
         emitter.close = () => {};
@@ -44,7 +55,7 @@ export function createSttClient(apiKey: string | undefined): SttClient {
   } as const;
 
   return {
-    startSession(onTranscript) {
+    startSession(onTranscript, onUtteranceEnd) {
       const emitter = new EventEmitter() as SttSession;
       let closed = false;
       let conn: ReturnType<typeof deepgram.listen.live> | null = null;
@@ -87,10 +98,20 @@ export function createSttClient(apiKey: string | undefined): SttClient {
           if (!alt) return;
           const text: string = alt.transcript ?? '';
           const isFinal: boolean = data.is_final ?? false;
+          const speechFinal: boolean = data.speech_final ?? false;
           if (text.trim()) {
-            console.log(JSON.stringify({ level: 'info', msg: 'deepgram-transcript', text, isFinal }));
-            onTranscript(text, isFinal);
+            console.log(
+              JSON.stringify({ level: 'info', msg: 'deepgram-transcript', text, isFinal, speechFinal }),
+            );
           }
+          // Empty finals still matter: they carry the endpointing signal that
+          // tells the turn detector speech has stopped.
+          if (text.trim() || isFinal) onTranscript(text, isFinal, speechFinal);
+        });
+
+        c.on(LiveTranscriptionEvents.UtteranceEnd, () => {
+          console.log(JSON.stringify({ level: 'info', msg: 'deepgram-utterance-end' }));
+          onUtteranceEnd?.();
         });
 
         const scheduleReconnect = () => {

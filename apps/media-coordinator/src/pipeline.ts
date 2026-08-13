@@ -15,6 +15,7 @@ import type { SttClient, SttSession } from './stt.js';
 import type { TtsClient } from './tts.js';
 import type { WhipPublisher } from './whip-publisher.js';
 import { voiceForPersona } from './voice-personas.js';
+import { createTurnDetector } from './turn-detector.js';
 
 export interface PipelineContribution {
   readonly agentName: string;
@@ -46,6 +47,12 @@ export interface PipelineOptions {
   readonly livekitRoomName?: string;
   readonly publisher?: WhipPublisher;
   readonly selfBaseUrl?: string;
+  /**
+   * Silence after speech appears to end before the turn is dispatched.
+   * Defaults to the turn detector's own value; exposed for tuning against real
+   * conversations, where the right pause length is a feel judgement.
+   */
+  readonly turnSettleMs?: number;
 }
 
 export function createPipelineSession(
@@ -134,19 +141,37 @@ export function createPipelineSession(
     }
   }
 
-  const sttSession: SttSession = stt.startSession((text, isFinal) => {
-    opts.onTranscriptChunk(text, isFinal);
-    if (isFinal) {
+  // Dispatch on end of turn, not on every stable segment. `is_final` fires on
+  // the pauses inside a sentence, so answering it meant replying to half a
+  // thought — "should we cut the marketing budget" got an answer while the
+  // founder was still saying "or raise a bridge round?".
+  const turns = createTurnDetector({
+    settleMs: opts.turnSettleMs ?? undefined,
+    onTurnComplete: (text) => {
       pendingTranscript = text;
-      void processUtterance(pendingTranscript);
-    }
+      void processUtterance(text);
+    },
   });
+
+  const sttSession: SttSession = stt.startSession(
+    (text, isFinal, speechFinal) => {
+      // The live transcript still updates on every segment — the founder should
+      // see their words appear as they speak, even though the advisors wait.
+      if (text.trim()) opts.onTranscriptChunk(text, isFinal);
+      turns.onTranscript(text, isFinal, speechFinal);
+    },
+    () => turns.onUtteranceEnd(),
+  );
 
   return {
     sendAudio(chunk: Buffer): void {
       sttSession.sendAudio(chunk);
     },
     close(): void {
+      // Anything still buffered is speech the founder finished but no silence
+      // followed — losing it would drop their last sentence.
+      turns.flush();
+      turns.close();
       sttSession.close();
     },
   };
