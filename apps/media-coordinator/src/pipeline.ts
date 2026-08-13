@@ -61,6 +61,12 @@ export interface PipelineOptions {
    * Apple's device lineup.
    */
   readonly vocabulary?: readonly string[];
+  /**
+   * The meeting session (a UUID from POST /v1/meeting/sessions) this voice
+   * session belongs to. Distinct from `sessionId`, which the browser mints for
+   * the media coordinator alone. Carries the agenda the founder uploaded.
+   */
+  readonly meetingSessionId?: string;
 }
 
 /**
@@ -89,7 +95,12 @@ export function createPipelineSession(
         // 'voice' changes how advisors answer: spoken replies must be short
         // enough to listen to. A 250-word contribution is a fine memo and 90
         // seconds of unbroken speech.
-        body: JSON.stringify({ message: text, sessionId: opts.sessionId, mode: 'voice' }),
+        body: JSON.stringify({
+          message: text,
+          sessionId: opts.sessionId,
+          mode: 'voice',
+          ...(opts.meetingSessionId ? { meetingSessionId: opts.meetingSessionId } : {}),
+        }),
       });
 
       if (!response.ok) {

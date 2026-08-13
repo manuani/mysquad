@@ -419,6 +419,9 @@ importers:
       '@voai/marketplace-metering':
         specifier: workspace:*
         version: link:../marketplace-metering
+      '@voai/meeting':
+        specifier: workspace:*
+        version: link:../meeting
       '@voai/routing':
         specifier: workspace:*
         version: link:../routing

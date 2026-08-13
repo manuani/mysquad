@@ -26,13 +26,19 @@ describe('session lifecycle', () => {
     expect(session.endedAt).toBeNull();
   });
 
-  it('rejects voice/mixed mode (deferred — no real-time infra)', async () => {
-    await expect(startSession(TENANT_CONTEXT, postgres, { mode: 'voice' })).rejects.toBeInstanceOf(
-      ValidationError,
-    );
-    await expect(startSession(TENANT_CONTEXT, postgres, { mode: 'mixed' })).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+  it('accepts voice and mixed mode now the real-time pipeline exists', async () => {
+    // These were rejected while LiveKit, STT and TTS were still deferred. That
+    // infrastructure now runs end to end (ADR 013), and the stale restriction
+    // surfaced as a 500 when the meeting UI opened a voice session to attach an
+    // agenda to.
+    expect((await startSession(TENANT_CONTEXT, postgres, { mode: 'voice' })).mode).toBe('voice');
+    expect((await startSession(TENANT_CONTEXT, postgres, { mode: 'mixed' })).mode).toBe('mixed');
+  });
+
+  it('still rejects a mode outside the supported set', async () => {
+    await expect(
+      startSession(TENANT_CONTEXT, postgres, { mode: 'telepathy' as never }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('activateSession transitions started -> active', async () => {

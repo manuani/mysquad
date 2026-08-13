@@ -27,6 +27,8 @@ export type { AppendTranscriptEntryInput, SpeakerType, TranscriptEntryRow } from
 export { appendTranscriptEntry, getTranscript } from './transcript.js';
 
 export { buildMeetingRouter } from './routes.js';
+export { getBrief, saveBrief, deleteBrief, MAX_BRIEF_CHARS } from './brief.js';
+export type { MeetingBrief } from './brief.js';
 
 export const meetingModule: ModuleDefinition = {
   name: 'meeting',

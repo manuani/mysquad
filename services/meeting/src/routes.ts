@@ -19,6 +19,7 @@ import type { Logger } from '@voai/types';
 import { isPlatformError, ValidationError } from '@voai/errors';
 import { startSession, getSession, endSession, type SessionMode } from './sessions.js';
 import { appendTranscriptEntry, getTranscript, type SpeakerType } from './transcript.js';
+import { deleteBrief, getBrief, saveBrief } from './brief.js';
 import type { SseManager } from './sse.js';
 import { AccessToken } from 'livekit-server-sdk';
 
@@ -111,6 +112,54 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
         content: body.content,
       });
       res.status(201).json(entry);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  // ── Meeting brief ────────────────────────────────────────────────────────
+  // The agenda a founder supplies before the meeting so advisors arrive
+  // already knowing the subject, instead of spending the first exchange
+  // asking what it is about.
+  router.put('/sessions/:id/brief', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const body = req.body as Record<string, unknown>;
+      if (typeof body.content !== 'string') throw new ValidationError('content is required');
+
+      const brief = await saveBrief(tenantContext, postgres, {
+        sessionId: requireParam(req, 'id'),
+        content: body.content,
+        ...(typeof body.title === 'string' ? { title: body.title } : {}),
+        ...(typeof body.sourceFilename === 'string'
+          ? { sourceFilename: body.sourceFilename }
+          : {}),
+      });
+      res.status(200).json(brief);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.get('/sessions/:id/brief', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const brief = await getBrief(tenantContext, postgres, requireParam(req, 'id'));
+      if (!brief) {
+        res.status(404).json({ error: 'NOT_FOUND', message: 'no brief for this session' });
+        return;
+      }
+      res.status(200).json(brief);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.delete('/sessions/:id/brief', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const removed = await deleteBrief(tenantContext, postgres, requireParam(req, 'id'));
+      res.status(removed ? 204 : 404).send();
     } catch (err) {
       handleError(err, res, log);
     }

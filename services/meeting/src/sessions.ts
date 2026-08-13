@@ -84,16 +84,13 @@ export async function startSession(
   if (!VALID_MODES.includes(mode)) {
     throw new ValidationError(`mode must be one of ${VALID_MODES.join(', ')}`);
   }
-  if (mode !== 'typed') {
-    // Voice/mixed modes need LiveKit/STT/TTS infra deferred from this
-    // deliverable (Sprint 2.2 creds not yet available). Accepting the
-    // value at the schema level (for forward compatibility) but rejecting
-    // it at the application layer until that infra exists avoids a later
-    // migration just to widen the CHECK constraint.
-    throw new ValidationError(
-      `mode ${mode} is not yet supported; only 'typed' is usable in this deliverable`,
-    );
-  }
+  // 'voice' and 'mixed' were rejected here while LiveKit, STT and TTS were
+  // still deferred. That infrastructure now exists and runs end to end —
+  // apps/media-coordinator carries the audio, and ADR 013 records the design —
+  // so the restriction has outlived its reason. It surfaced as a confusing
+  // 500 when the meeting UI tried to open a voice session to attach an agenda
+  // to: the create failed with a 400 the caller did not read, and the missing
+  // session id reached Postgres as the string "undefined".
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
     const result = await client.query<SessionSqlRow>(

@@ -76,6 +76,12 @@ export interface AgentContributionInput {
    * is roughly 90 seconds of uninterrupted synthesised speech.
    */
   readonly mode?: 'voice' | 'typed';
+  /**
+   * The agenda the founder supplied before the meeting. Present when they
+   * uploaded one; advisors read it so they arrive knowing the subject rather
+   * than opening with "what is this about?".
+   */
+  readonly brief?: { readonly title: string | null; readonly content: string } | null;
 }
 
 /**
@@ -106,6 +112,7 @@ function assembleSystemPrompt(
   teammates?: readonly Pick<AgentPersona, 'name' | 'role'>[],
   register?: { readonly isSocial: boolean; readonly wasNamed: boolean },
   mode?: 'voice' | 'typed',
+  brief?: { readonly title: string | null; readonly content: string } | null,
 ): string {
   let prompt = persona.systemPrompt;
 
@@ -132,6 +139,12 @@ Do not explain who does what on this team, do not tell the founder which teammat
 Never use headings, numbered lists, bullet points or bold text; none of it survives being spoken. If you need three things from the founder, ask for the most important one and let them answer before you ask the next. Do not restate their question back to them, and do not preface with what you are about to do — just say it.
 
 If you genuinely cannot help without more information, ask one short question. A spoken reply that runs past about forty seconds has already lost them.`;
+  }
+
+  if (brief?.content) {
+    prompt += `\n\nThe founder circulated this before the meeting${brief.title ? ` — "${brief.title}"` : ''}:\n\n${brief.content}\n\nYou have read it. Do not ask them for anything it already answers, do not summarise it back to them, and do not open by acknowledging that you read it. Use it the way a colleague who did the reading would: come in with a view.
+
+Where it leaves something out that you genuinely need, ask for that one thing specifically rather than asking them to explain the whole picture again.`;
   }
 
   if (brainContext && brainContext.length > 0) {
@@ -258,6 +271,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
               return { isSocial: a.isSocial, wasNamed: a.addressed.includes(persona.id) };
             })(),
           input.mode,
+          input.brief,
         ),
         // A hard ceiling as well as an instruction. Prompt guidance alone lets
         // a model run long on a question it finds interesting, and in voice
@@ -493,6 +507,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
           wasNamed: address.addressed.includes(persona.id),
         },
         mode: input.mode,
+        brief: input.brief,
       });
 
       priorResponses.push(contribution.content);

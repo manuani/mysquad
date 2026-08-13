@@ -54,6 +54,23 @@
 | 3.5 | Append transcript entry | `POST /v1/meeting/sessions/:id/transcript` |
 | 3.6 | Get full transcript | `GET /v1/meeting/sessions/:id/transcript` |
 | 3.7 | Subscribe to live session events (SSE) | `GET /v1/meeting/sessions/:id/events` |
+| 3.8 | Upload an agenda or brief for a meeting | `PUT /v1/meeting/sessions/:id/brief` |
+| 3.9 | Read the brief | `GET /v1/meeting/sessions/:id/brief` |
+| 3.10 | Remove the brief | `DELETE /v1/meeting/sessions/:id/brief` |
+
+**Meeting briefs.** An agenda the founder supplies before the meeting so
+advisors arrive knowing the subject. Body: `{ content, title?, sourceFilename? }`,
+up to 15,000 characters. One per session — re-uploading replaces it.
+
+Advisors read it on every turn, so they open with a view rather than with
+"what are you building?". Measured on the same question, without a brief:
+*"I need to understand what problem this solves and who's paying for it."*
+With one: *"You've got 240,000 dollars and you're burning 40,000 a month, so
+you're sitting at roughly six months."*
+
+In the voice UI it is the agenda box on the join screen; `.txt` and `.md`
+attachments are read in the browser, anything else is pasted. Pass
+`meetingSessionId` on a roster call to have the advisors read it.
 
 ---
 

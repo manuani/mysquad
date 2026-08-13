@@ -22,6 +22,7 @@ import { matchExperts } from '@voai/marketplace';
 import { recordMeteringEvent } from '@voai/marketplace-metering';
 import { AgentRuntime } from './agent-runtime.js';
 import { createPlanResolver } from './tenant-plan.js';
+import { getBrief } from '@voai/meeting';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
 import { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
@@ -131,7 +132,12 @@ export function buildAgentRuntimeRouter(
   router.post('/contributions/roster', async (req: Request, res: Response) => {
     try {
       const tenantContext = tenantContextFromRequest(req);
-      const body = req.body as { message?: unknown; sessionId?: unknown; mode?: unknown };
+      const body = req.body as {
+        message?: unknown;
+        sessionId?: unknown;
+        mode?: unknown;
+        meetingSessionId?: unknown;
+      };
       if (typeof body.message !== 'string' || body.message.trim().length === 0) {
         throw new ValidationError('message is required');
       }
@@ -149,10 +155,24 @@ export function buildAgentRuntimeRouter(
       const requestId = (res.locals['requestId'] as string | undefined) ?? undefined;
       const mode = body.mode === 'voice' ? 'voice' : 'typed';
 
+      // The agenda the founder uploaded before the meeting, if any. Read via
+      // @voai/meeting's typed export rather than querying its tables directly
+      // (CLAUDE.md "Module boundaries are real"). A missing or unreadable brief
+      // must never block the meeting — the advisors simply start cold, which is
+      // the behaviour before briefs existed.
+      const meetingSessionId =
+        typeof body.meetingSessionId === 'string' ? body.meetingSessionId : null;
+      const brief = meetingSessionId
+        ? await getBrief(tenantContext, postgres, meetingSessionId).catch((err: unknown) => {
+            log.warn('brief fetch failed, continuing without it', { err: String(err) });
+            return null;
+          })
+        : null;
+
       const { ordered, skipped } = await runtime.generateOrderedContributions(
         tenantContext,
         ROSTER,
-        { message: body.message, brainContext, requestId, mode },
+        { message: body.message, brainContext, requestId, mode, brief },
       );
 
       postgres

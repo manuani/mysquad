@@ -248,6 +248,20 @@
         <input type="text" id="display-name-input" placeholder="Your display name" />
         <div class="divider">— join existing room or create new —</div>
         <input type="text" id="room-input" placeholder="Room name (leave blank to create new)" />
+
+        <div class="divider">— agenda or brief (optional) —</div>
+        <p style="font-size:12px;color:#718096;margin-bottom:10px">
+          Paste or attach what this meeting is about. Your advisors read it before
+          joining, so they arrive with a view instead of asking what you're building.
+        </p>
+        <input type="text" id="brief-title-input" placeholder="Agenda title (optional)" />
+        <textarea id="brief-input" rows="5"
+          placeholder="e.g. We're launching iTrendFast in October. Need a go-to-market plan and a view on whether the budget holds."
+          style="width:100%;background:#0f1117;border:1px solid #2d3748;border-radius:8px;padding:10px 14px;color:#e2e8f0;font-size:13px;margin-bottom:8px;outline:none;font-family:inherit;resize:vertical"></textarea>
+        <input type="file" id="brief-file-input" accept=".txt,.md,.markdown,text/plain"
+          style="font-size:12px;color:#718096;margin-bottom:6px" />
+        <p id="brief-status" style="font-size:11px;color:#718096;margin-bottom:12px"></p>
+
         <button onclick="joinMeeting()">Join / Create Meeting</button>
         <button class="secondary" onclick="window.location='/demo'">← Back to Demo</button>
       </div>
@@ -399,7 +413,9 @@
         await livekitRoom.localParticipant.publishTrack(micTrack);
         micEnabled = true;
 
-        // Step 6 — open WebSocket to media-coordinator for STT
+        // Step 6 — store the agenda, then open the STT socket. Done before the
+        // socket so the advisors have read it before the first word arrives.
+        meetingSessionId = await saveBriefIfProvided();
         connectAudioWS();
 
         // Update UI
@@ -430,6 +446,7 @@
             userId,
             sessionToken,
             livekitRoomName: currentRoomName,
+            ...(meetingSessionId ? { meetingSessionId } : {}),
             // Names the transcriber would otherwise guess at. Set
             // localStorage 'voai_vocabulary' to a comma-separated list of your
             // company and product names — without it "iTrendFast" comes back as
@@ -881,6 +898,79 @@
       }
       function esc(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      // ── Meeting brief ──────────────────────────────────────────────────────
+      // Read a .txt/.md attachment into the textarea. Anything richer (PDF,
+      // Word) is left to the founder to paste: extracting text from those in
+      // the browser needs a parser per format, and a wrong extraction would
+      // feed the advisors a garbled agenda they would treat as fact.
+      document.getElementById('brief-file-input')?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        const status = document.getElementById('brief-status');
+        if (!file) return;
+        try {
+          const text = await file.text();
+          document.getElementById('brief-input').value = text;
+          const titleEl = document.getElementById('brief-title-input');
+          if (!titleEl.value) titleEl.value = file.name.replace(/\.[^.]+$/, '');
+          briefFilename = file.name;
+          status.textContent = `Loaded ${file.name} — ${text.length.toLocaleString()} characters`;
+        } catch (err) {
+          status.textContent = `Could not read ${file.name}. Paste the text instead.`;
+          console.warn('brief file read failed', err);
+        }
+      });
+
+      let briefFilename = null;
+      let meetingSessionId = null;
+
+      /**
+       * Creates the meeting session that owns the agenda, and stores it.
+       * Returns the session id, or null when there is no agenda to store —
+       * a meeting without one is the normal case and must still start.
+       */
+      async function saveBriefIfProvided() {
+        const content = (document.getElementById('brief-input')?.value ?? '').trim();
+        if (!content) return null;
+
+        const status = document.getElementById('brief-status');
+        try {
+          const sessionRes = await fetch(`${API}/v1/meeting/sessions`, {
+            method: 'POST', headers: authHeaders(), body: JSON.stringify({ mode: 'voice' }),
+          });
+          if (!sessionRes.ok) throw new Error(`session create failed (${sessionRes.status})`);
+          const session = await sessionRes.json();
+
+          const title = (document.getElementById('brief-title-input')?.value ?? '').trim();
+          const briefRes = await fetch(`${API}/v1/meeting/sessions/${session.id}/brief`, {
+            method: 'PUT', headers: authHeaders(),
+            body: JSON.stringify({
+              content,
+              ...(title ? { title } : {}),
+              ...(briefFilename ? { sourceFilename: briefFilename } : {}),
+            }),
+          });
+          if (!briefRes.ok) throw new Error(`brief upload failed (${briefRes.status})`);
+
+          status.textContent = 'Agenda shared with your advisors.';
+          return session.id;
+        } catch (err) {
+          // Never block the meeting over the agenda — start without it.
+          console.warn('brief upload failed, joining without it', err);
+          status.textContent = 'Could not share the agenda — joining without it.';
+          return null;
+        }
+      }
+
+      function authHeaders() {
+        return {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+          'x-user-id': userId,
+          'x-user-type': 'founder',
+          'x-session-id': sessionToken,
+        };
       }
 
       // Auto-fill from demo UI's localStorage session

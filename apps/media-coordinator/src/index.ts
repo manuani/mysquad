@@ -125,6 +125,8 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
     livekitRoomName?: string;
     /** Company and product names to boost in transcription. */
     vocabulary?: unknown;
+    /** Meeting session UUID, so advisors can read the agenda for it. */
+    meetingSessionId?: string;
   };
   if (!body.tenantId || !body.userId || !body.sessionToken) {
     res.status(400).json({ error: 'tenantId, userId, sessionToken required' });
@@ -151,6 +153,9 @@ app.post('/sessions/:id/start', (req: Request, res: Response) => {
       authHeaders,
       livekitRoomName,
       vocabulary,
+      ...(typeof body.meetingSessionId === 'string'
+        ? { meetingSessionId: body.meetingSessionId }
+        : {}),
       publisher,
       selfBaseUrl: config.selfBaseUrl,
       onContributions: (contributions) => {
