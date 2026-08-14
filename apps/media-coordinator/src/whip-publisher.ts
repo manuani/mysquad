@@ -122,8 +122,40 @@ export function createWhipPublisher(deps: WhipPublisherDeps): WhipPublisher {
  * Remove a dynamically-added route from an Express Router.
  * Express stores routes on router.stack — find by path and splice it out.
  */
+/**
+ * Removes a one-shot audio-serve route.
+ *
+ * The value passed here is the Express *application*, not a Router, and an app
+ * keeps its layers on `app._router.stack` — `app.stack` is undefined. Reading
+ * the wrong one threw `Cannot read properties of undefined (reading
+ * 'findIndex')` from inside the TTL timer, and an uncaught exception in a timer
+ * takes the process down.
+ *
+ * That crash fired on every local meeting: LiveKit Cloud cannot fetch a
+ * localhost serve URL (ADR 013), so the route was never hit, so the TTL always
+ * expired. The media coordinator died about a minute after the first advisor
+ * spoke, which read as typed messages silently failing to send — the socket had
+ * gone with it.
+ *
+ * Never throws. Failing to unregister a route leaks one closure; throwing here
+ * ends the meeting.
+ */
 function removeRoute(path: string, router: Router): void {
-  const stack = (router as unknown as { stack: Array<{ route?: { path: string } }> }).stack;
-  const idx = stack.findIndex((layer) => layer.route?.path === path);
-  if (idx !== -1) stack.splice(idx, 1);
+  try {
+    const candidate = router as unknown as {
+      stack?: Array<{ route?: { path: string } }>;
+      _router?: { stack?: Array<{ route?: { path: string } }> };
+      router?: { stack?: Array<{ route?: { path: string } }> };
+    };
+
+    // A Router exposes `.stack`; an app exposes `._router.stack` on Express 4
+    // and `.router.stack` on Express 5.
+    const stack = candidate.stack ?? candidate._router?.stack ?? candidate.router?.stack;
+    if (!Array.isArray(stack)) return;
+
+    const idx = stack.findIndex((layer) => layer.route?.path === path);
+    if (idx !== -1) stack.splice(idx, 1);
+  } catch {
+    // Route bookkeeping is not worth a process.
+  }
 }

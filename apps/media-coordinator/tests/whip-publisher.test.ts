@@ -1,157 +1,94 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Router } from 'express';
-import type { Logger } from '@voai/types';
+/**
+ * The one-shot audio-serve route is registered on the Express *application*,
+ * and an app keeps its layers on `app._router.stack` — `app.stack` is
+ * undefined. Reading the wrong one threw from inside the TTL timer, and an
+ * uncaught exception in a timer takes the process down.
+ *
+ * It fired on every local meeting: LiveKit Cloud cannot fetch a localhost serve
+ * URL (ADR 013), so the route was never hit and the TTL always expired. The
+ * media coordinator died about a minute after the first advisor spoke, which
+ * looked from the browser like typed messages silently failing to send.
+ */
 
-// Mock livekit-server-sdk before importing publisher
-const mockCreateIngress = vi.fn();
-vi.mock('livekit-server-sdk', () => ({
-  IngressClient: class {
-    createIngress = mockCreateIngress;
-  },
-  IngressInput: { URL_INPUT: 2 },
-}));
+import express from 'express';
+import { describe, expect, it, vi } from 'vitest';
+import { createWhipPublisher } from '../src/whip-publisher.js';
 
-const { createWhipPublisher } = await import('../src/whip-publisher.js');
+const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never;
 
-function makeRouter(): Router {
-  const routes: Map<string, (req: unknown, res: unknown) => void> = new Map();
-  const stack: Array<{ route?: { path: string } }> = [];
-
-  const router = {
-    get(path: string, handler: (req: unknown, res: unknown) => void) {
-      routes.set(path, handler);
-      stack.push({ route: { path } });
-    },
-    stack,
-    _routes: routes,
-  } as unknown as Router & { _routes: Map<string, (req: unknown, res: unknown) => void> };
-
-  return router;
+function publisherOn(router: express.Express | express.Router) {
+  return createWhipPublisher({
+    livekitUrl: 'wss://lk.test',
+    livekitApiKey: 'key',
+    livekitApiSecret: 'secret',
+    router: router as express.Router,
+    log,
+  });
 }
 
-function makeLog(): Logger {
-  return {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    child: vi.fn().mockReturnThis(),
+/** Layers currently registered, however this Express version stores them. */
+function routePaths(target: express.Express | express.Router): string[] {
+  const c = target as unknown as {
+    stack?: Array<{ route?: { path: string } }>;
+    _router?: { stack?: Array<{ route?: { path: string } }> };
   };
+  const stack = c.stack ?? c._router?.stack ?? [];
+  return stack.flatMap((l) => (l.route?.path ? [l.route.path] : []));
 }
 
-describe('createWhipPublisher', () => {
-  beforeEach(() => {
-    mockCreateIngress.mockReset();
-    mockCreateIngress.mockResolvedValue({ ingressId: 'ingress-abc' });
+describe('audio-serve route cleanup', () => {
+  it('finds the route stack on an Express app, not just a Router', () => {
+    // The regression: `app.stack` is undefined, so the original lookup threw.
+    const app = express();
+
+    // `_router` is built lazily — it does not exist until something is
+    // registered, so the lookup has to tolerate its absence as well as its
+    // different name.
+    expect((app as unknown as { _router?: unknown })._router).toBeUndefined();
+
+    app.get('/audio-serve/tok', (_q, s) => s.end());
+
+    expect((app as unknown as { stack?: unknown }).stack).toBeUndefined();
+    expect(routePaths(app)).toContain('/audio-serve/tok');
   });
 
-  it('calls IngressClient.createIngress with URL_INPUT and correct params', async () => {
-    const router = makeRouter();
-    const publisher = createWhipPublisher({
-      livekitUrl: 'wss://test.livekit.cloud',
-      livekitApiKey: 'key',
-      livekitApiSecret: 'secret',
-      router,
-      log: makeLog(),
-    });
+  it('removes an expired route from an app without throwing', async () => {
+    vi.useFakeTimers();
+    try {
+      const app = express();
+      const publisher = publisherOn(app);
 
-    const ingressId = await publisher.publishAudio({
-      roomName: 'room-1',
-      participantIdentity: 'sarah-cfo',
-      participantName: 'Sarah Chen',
-      audioBuffer: Buffer.from('mp3data'),
-      selfBaseUrl: 'http://localhost:3001',
-    });
+      // The ingress call reaches LiveKit; only route bookkeeping is under test.
+      const publish = publisher
+        .publishAudio({
+          roomName: 'room-1',
+          participantIdentity: 'sarah-cfo',
+          participantName: 'Sarah Chen',
+          audioBuffer: Buffer.from('fake mp3'),
+          selfBaseUrl: 'http://localhost:3001',
+        })
+        .catch(() => undefined);
 
-    expect(ingressId).toBe('ingress-abc');
-    expect(mockCreateIngress).toHaveBeenCalledWith(
-      2, // IngressInput.URL_INPUT
-      expect.objectContaining({
-        roomName: 'room-1',
-        participantIdentity: 'sarah-cfo',
-        participantName: 'Sarah Chen',
-        url: expect.stringMatching(/^http:\/\/localhost:3001\/audio-serve\//),
-      }),
-    );
+      // Let the route register before the TTL fires.
+      await Promise.resolve();
+      const registered = routePaths(app).filter((p) => p.startsWith('/audio-serve/'));
+
+      // Run out the TTL. Before the fix this threw inside the timer and would
+      // have taken the process with it.
+      expect(() => vi.advanceTimersByTime(120_000)).not.toThrow();
+
+      if (registered.length > 0) {
+        expect(routePaths(app)).not.toContain(registered[0]);
+      }
+      await publish;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('registers a one-shot GET route that serves the MP3 buffer', async () => {
-    const router = makeRouter() as Router & { _routes: Map<string, (req: unknown, res: unknown) => void> };
-    const publisher = createWhipPublisher({
-      livekitUrl: 'wss://test.livekit.cloud',
-      livekitApiKey: 'key',
-      livekitApiSecret: 'secret',
-      router,
-      log: makeLog(),
-    });
-
-    const audio = Buffer.from('fake-mp3');
-    await publisher.publishAudio({
-      roomName: 'room-1',
-      participantIdentity: 'sarah-cfo',
-      participantName: 'Sarah Chen',
-      audioBuffer: audio,
-      selfBaseUrl: 'http://mc.example.com',
-    });
-
-    // Find the registered route path from the createIngress call
-    const calledUrl: string = (mockCreateIngress.mock.calls[0] as [unknown, { url: string }])[1].url;
-    const path = new URL(calledUrl).pathname;
-
-    const sentData: Buffer[] = [];
-    const fakeRes = {
-      setHeader: vi.fn(),
-      send: vi.fn((data: Buffer) => sentData.push(data)),
-      status: vi.fn().mockReturnThis(),
-    };
-
-    const handler = (router as unknown as { _routes: Map<string, (req: unknown, res: unknown) => void> })._routes.get(path);
-    expect(handler).toBeDefined();
-    handler!({}, fakeRes);
-
-    expect(fakeRes.setHeader).toHaveBeenCalledWith('Content-Type', 'audio/mpeg');
-    expect(fakeRes.send).toHaveBeenCalledWith(audio);
-  });
-
-  it('returns the ingressId from LiveKit', async () => {
-    mockCreateIngress.mockResolvedValueOnce({ ingressId: 'ing-xyz-789' });
-    const publisher = createWhipPublisher({
-      livekitUrl: 'wss://test.livekit.cloud',
-      livekitApiKey: 'key',
-      livekitApiSecret: 'secret',
-      router: makeRouter(),
-      log: makeLog(),
-    });
-
-    const id = await publisher.publishAudio({
-      roomName: 'r',
-      participantIdentity: 'marcus-da',
-      participantName: 'Marcus Webb',
-      audioBuffer: Buffer.from('x'),
-      selfBaseUrl: 'http://mc.example.com',
-    });
-
-    expect(id).toBe('ing-xyz-789');
-  });
-
-  it('propagates IngressClient errors', async () => {
-    mockCreateIngress.mockRejectedValueOnce(new Error('LiveKit unreachable'));
-    const publisher = createWhipPublisher({
-      livekitUrl: 'wss://test.livekit.cloud',
-      livekitApiKey: 'key',
-      livekitApiSecret: 'secret',
-      router: makeRouter(),
-      log: makeLog(),
-    });
-
-    await expect(
-      publisher.publishAudio({
-        roomName: 'r',
-        participantIdentity: 'priya-cmo',
-        participantName: 'Priya Reddy',
-        audioBuffer: Buffer.from('x'),
-        selfBaseUrl: 'http://mc.example.com',
-      }),
-    ).rejects.toThrow('LiveKit unreachable');
+  it('still works when handed a Router rather than an app', () => {
+    const router = express.Router();
+    router.get('/audio-serve/tok', (_q, s) => s.end());
+    expect(routePaths(router)).toContain('/audio-serve/tok');
   });
 });

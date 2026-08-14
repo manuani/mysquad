@@ -113,6 +113,15 @@
       #invite-ai-btn.active { background: #276749; }
       #end-btn { margin-left: auto; }
 
+      #connection-banner {
+        display: none;
+        background: #742a2a;
+        color: #fed7d7;
+        font-size: 12px;
+        padding: 8px 20px;
+        text-align: center;
+      }
+
       #compose {
         grid-column: 1;
         grid-row: 3;
@@ -291,6 +300,7 @@
     </div>
 
     <!-- Meeting UI -->
+    <div id="connection-banner"></div>
     <header>
       <h1>🎙 VoAI Voice Meeting</h1>
       <span id="room-name">—</span>
@@ -348,6 +358,9 @@
       let micTrack = null;
       let micEnabled = false;
       let audioWs = null;       // WebSocket to media-coordinator for STT
+      // Set when the founder ends the meeting, so an expected socket close is
+      // not reported to them as a dropped connection.
+      let meetingEnded = false;
       let aiInvited = false;
       let mediaStream = null;
       let audioProcessor = null;
@@ -457,7 +470,12 @@
         // Step 6 — store the agenda, then open the STT socket. Done before the
         // socket so the advisors have read it before the first word arrives.
         meetingSessionId = await saveBriefIfProvided();
-        connectAudioWS();
+        try {
+          await connectAudioWS();
+        } catch (e) {
+          console.warn('audio socket failed on join', e);
+          showConnectionLost();
+        }
 
         // Update UI
         document.getElementById('join-screen').classList.add('hidden');
@@ -475,13 +493,21 @@
       }
 
       // ── Audio capture → media-coordinator ──────────────────────────────────
+      /**
+       * Opens the media-coordinator session and its socket.
+       *
+       * Resolves once the socket is actually open, so callers can tell an
+       * established connection from one still in flight. Rejects on failure
+       * rather than logging and returning, which used to leave the meeting
+       * looking joined while nothing could be sent.
+       */
       function connectAudioWS() {
         // The MC session ID is set in the URL path — client generates it.
         const sessionId = `${tenantId.slice(0, 8)}-${Date.now()}`;
         voiceSessionId = sessionId;
         const wsBase = MC_URL.replace('http://', 'ws://').replace('https://', 'wss://');
 
-        fetch(`${MC_URL}/sessions/${sessionId}/start`, {
+        return fetch(`${MC_URL}/sessions/${sessionId}/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -490,22 +516,29 @@
             sessionToken,
             livekitRoomName: currentRoomName,
             ...(meetingSessionId ? { meetingSessionId } : {}),
-            // Names the transcriber would otherwise guess at. Set
-            // localStorage 'voai_vocabulary' to a comma-separated list of your
-            // company and product names — without it "iTrendFast" comes back as
-            // "iPhone, iPad and Macomb".
+            // Names the transcriber would otherwise guess at. Set localStorage
+            // 'voai_vocabulary' to a comma-separated list of your company and
+            // product names — without it "iTrendFast" comes back as "iPhone,
+            // iPad and Macomb".
             vocabulary: (localStorage.getItem('voai_vocabulary') ?? '')
               .split(',').map((t) => t.trim()).filter(Boolean),
           }),
         }).then(async (r) => {
-          if (!r.ok) { console.warn('MC session start failed', r.status, await r.text()); return; }
-          audioWs = new WebSocket(`${wsBase}/sessions/${sessionId}/ws`);
-          audioWs.binaryType = 'arraybuffer';
-          audioWs.onmessage = handleMCMessage;
-          audioWs.onerror = (e) => console.warn('audioWs error', e);
-          audioWs.onopen = () => console.log('audioWs connected for STT', sessionId);
-          audioWs.onclose = () => console.log('audioWs closed');
-        }).catch((e) => console.warn('MC connect error', e));
+          if (!r.ok) throw new Error(`MC session start failed (${r.status}): ${await r.text()}`);
+
+          return new Promise((resolve, reject) => {
+            audioWs = new WebSocket(`${wsBase}/sessions/${sessionId}/ws`);
+            audioWs.binaryType = 'arraybuffer';
+            audioWs.onmessage = handleMCMessage;
+            audioWs.onerror = (e) => { console.warn('audioWs error', e); reject(new Error('socket error')); };
+            audioWs.onopen = () => { console.log('audioWs connected for STT', sessionId); resolve(); };
+            audioWs.onclose = () => {
+              console.log('audioWs closed');
+              // Only surface a drop mid-meeting; closing at the end is expected.
+              if (!meetingEnded) showConnectionLost();
+            };
+          });
+        });
       }
 
       async function startAudioCapture() {
@@ -861,6 +894,7 @@
 
       async function endMeeting() {
         if (!livekitRoom) return;
+        meetingEnded = true;
         if (voiceSessionId) {
           await fetch(`${API}/voice-gateway/rooms/${currentRoomName}/end`, {
             method: 'POST',
@@ -958,7 +992,11 @@
         if (!text) return;
 
         if (!audioWs || audioWs.readyState !== WebSocket.OPEN) {
-          console.warn('not connected — message not sent');
+          // Silently dropping the message here is what made a dead connection
+          // look like a broken Send button: the founder typed, pressed enter,
+          // and nothing happened or explained why. Keep their text so it is not
+          // lost, say what went wrong, and try to get the socket back.
+          showConnectionLost();
           return;
         }
 
@@ -969,6 +1007,55 @@
         audioWs.send(JSON.stringify({ type: 'message', text }));
         appendTranscript(displayName, text, true);
         input.value = '';
+      }
+
+      /** Tells the founder the meeting connection dropped, and tries to restore it. */
+      function showConnectionLost() {
+        const bar = document.getElementById('connection-banner');
+        if (bar) {
+          bar.textContent = 'Connection to the meeting was lost — reconnecting…';
+          bar.style.display = 'block';
+        }
+        appendTranscript('System', 'Connection lost. Your message was not sent — reconnecting.', true);
+        reconnectAudioWS();
+      }
+
+      function hideConnectionLost() {
+        const bar = document.getElementById('connection-banner');
+        if (bar) bar.style.display = 'none';
+      }
+
+      let reconnecting = false;
+
+      /**
+       * Reopens the media-coordinator socket after a drop.
+       *
+       * A new session id is minted deliberately: the coordinator holds
+       * per-session state in memory, and a process that died lost it, so
+       * resuming the old id would attach to nothing.
+       */
+      async function reconnectAudioWS() {
+        if (reconnecting) return;
+        reconnecting = true;
+        try {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            await new Promise((r) => setTimeout(r, attempt * 1000));
+            try {
+              await connectAudioWS();
+              if (audioWs && audioWs.readyState === WebSocket.OPEN) {
+                hideConnectionLost();
+                appendTranscript('System', 'Reconnected. Carry on.', true);
+                return;
+              }
+            } catch (e) {
+              console.warn('reconnect attempt failed', attempt, e);
+            }
+          }
+          const bar = document.getElementById('connection-banner');
+          if (bar) bar.textContent = 'Could not reconnect. Reload the page to rejoin.';
+        } finally {
+          reconnecting = false;
+        }
       }
 
       // ── Meeting brief ──────────────────────────────────────────────────────
