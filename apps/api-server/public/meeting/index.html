@@ -383,7 +383,16 @@
           headers: { Authorization: `Bearer ${rawToken}` },
         });
         if (!meRes.ok) {
-          showJoinError('Invalid session token — please sign in at /demo first');
+          // 401 here almost always means the 24-hour session lapsed rather than
+          // the token being wrong. Saying "invalid" sent founders back to /demo
+          // to repeat what they had already done.
+          localStorage.removeItem('voai_demo_session');
+          document.getElementById('token-input').value = '';
+          showJoinError(
+            meRes.status === 401
+              ? 'Your session expired. Sign in again at /demo, then reload this page.'
+              : `Could not verify your session (${meRes.status}). Sign in again at /demo.`,
+          );
           return;
         }
         const me = await meRes.json();
@@ -1040,7 +1049,18 @@
       if (saved) {
         try {
           const s = JSON.parse(saved);
-          if (s.sessionToken) document.getElementById('token-input').value = s.sessionToken;
+
+          // Sessions last 24 hours. An expired one used to be filled in
+          // silently and then rejected on join with "please sign in at /demo
+          // first" — advice the founder had already followed, and which could
+          // not work, because the dead token was refilled on every reload.
+          const expired = s.expiresAt && new Date(s.expiresAt) <= new Date();
+          if (expired) {
+            localStorage.removeItem('voai_demo_session');
+            showJoinError('Your session expired. Sign in again at /demo, then come back.');
+          } else {
+            if (s.sessionToken) document.getElementById('token-input').value = s.sessionToken;
+          }
           if (s.email) document.getElementById('display-name-input').value = s.email.split('@')[0];
         } catch {}
       }
