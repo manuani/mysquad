@@ -31,6 +31,15 @@ export interface PipelineContribution {
 export interface PipelineSession {
   /** Feed raw audio (linear16 PCM) from the founder's mic. */
   sendAudio(chunk: Buffer): void;
+  /**
+   * A message the founder typed rather than spoke. Goes straight to the
+   * advisors — there is nothing to transcribe, and no turn to wait the end of.
+   *
+   * Typing is not a fallback for a broken mic. It is the right input when a
+   * product name keeps being misheard, when the founder is somewhere they
+   * cannot speak, or when a figure has to be exact.
+   */
+  sendTypedMessage(text: string): void;
   /** Gracefully shut down STT connection. */
   close(): void;
 }
@@ -202,6 +211,17 @@ export function createPipelineSession(
   return {
     sendAudio(chunk: Buffer): void {
       sttSession.sendAudio(chunk);
+    },
+
+    sendTypedMessage(text: string): void {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      // Anything part-spoken is abandoned: the founder switched to typing
+      // mid-thought, and dispatching the half-sentence they gave up on would
+      // put a fragment to the advisors alongside what they actually meant.
+      turns.close();
+      opts.onTranscriptChunk(trimmed, true);
+      void processUtterance(trimmed);
     },
     close(): void {
       // Anything still buffered is speech the founder finished but no silence

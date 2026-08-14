@@ -195,6 +195,18 @@ attachments are read in the browser, anything else is pasted. Pass
 | 11.3 | Start the AI advisors in the room | `POST /v1/voice-gateway/rooms/:name/start-ai` |
 | 11.4 | End the room | `POST /v1/voice-gateway/rooms/:name/end` |
 | 11.5 | Voice Meeting Web UI | `GET /meeting` (browser) |
+| 11.6 | Type a message mid-meeting | text frame on the media-coordinator WebSocket |
+
+**Speaking and typing are interchangeable.** The meeting has a message box
+beside the mic. Both go to the advisors over the same WebSocket — binary frames
+are audio, text frames (`{"type":"message","text":"..."}`) are typed input —
+so a meeting moves between the two without reconnecting.
+
+Typing is not a fallback for a broken mic. It is the better input when a
+product name keeps being misheard, when a figure has to be exact, or when you
+are somewhere you cannot talk. Advisors still reply aloud, since you are in a
+voice meeting. Typing while an advisor is speaking interrupts them, exactly as
+speaking over them does.
 
 **Tenant isolation:** room names are prefixed with the tenant id; joining,
 starting AI in, or ending a room whose prefix doesn't match the caller's tenant

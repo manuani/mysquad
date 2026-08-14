@@ -35,7 +35,7 @@
       .layout {
         display: grid;
         grid-template-columns: 1fr 340px;
-        grid-template-rows: 1fr auto;
+        grid-template-rows: 1fr auto auto;
         flex: 1;
         overflow: hidden;
       }
@@ -113,10 +113,33 @@
       #invite-ai-btn.active { background: #276749; }
       #end-btn { margin-left: auto; }
 
+      #compose {
+        grid-column: 1;
+        grid-row: 3;
+        background: #1a1f2e;
+        padding: 0 20px 16px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      #compose-input {
+        flex: 1;
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #e2e8f0;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+      }
+      #compose-input:focus { border-color: #4299e1; }
+      #compose-input:disabled { opacity: 0.4; }
+
       /* Right panel — transcript + AI chat */
       #right-panel {
         grid-column: 2;
-        grid-row: 1 / 3;
+        grid-row: 1 / 4;
         background: #141820;
         border-left: 1px solid #2d3748;
         display: flex;
@@ -287,6 +310,15 @@
         <button class="ctrl danger" id="end-btn" onclick="endMeeting()">📴 End Meeting</button>
       </div>
 
+      <!-- Type instead of speaking. Useful when a name keeps being misheard,
+           when a figure has to be exact, or when you cannot talk out loud. -->
+      <div id="compose">
+        <input type="text" id="compose-input" placeholder="Or type a message…"
+          onkeydown="if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTypedMessage(); }"
+          disabled />
+        <button class="ctrl" id="compose-send" onclick="sendTypedMessage()" disabled>Send</button>
+      </div>
+
       <!-- Right panel -->
       <div id="right-panel">
         <div id="right-tabs">
@@ -426,6 +458,8 @@
         document.getElementById('mic-btn').textContent = '🎙 Mic On';
         document.getElementById('mic-btn').classList.add('active');
         document.getElementById('invite-ai-btn').disabled = false;
+        document.getElementById('compose-input').disabled = false;
+        document.getElementById('compose-send').disabled = false;
         renderParticipants();
         primeAudioPlayback();
         startAudioCapture();
@@ -898,6 +932,34 @@
       }
       function esc(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      /**
+       * Sends a typed message to the advisors over the same socket the audio
+       * uses, so a meeting can move between speaking and typing without
+       * reconnecting.
+       *
+       * Typing is not a fallback for a broken mic — it is the better input when
+       * a product name keeps being misheard, when a figure has to be exact, or
+       * when the founder is somewhere they cannot talk out loud.
+       */
+      function sendTypedMessage() {
+        const input = document.getElementById('compose-input');
+        const text = (input?.value ?? '').trim();
+        if (!text) return;
+
+        if (!audioWs || audioWs.readyState !== WebSocket.OPEN) {
+          console.warn('not connected — message not sent');
+          return;
+        }
+
+        // Typing mid-monologue is as clear an interruption as speaking over
+        // them, so treat it as one.
+        interruptAdvisors('founder typed a message');
+
+        audioWs.send(JSON.stringify({ type: 'message', text }));
+        appendTranscript(displayName, text, true);
+        input.value = '';
       }
 
       // ── Meeting brief ──────────────────────────────────────────────────────

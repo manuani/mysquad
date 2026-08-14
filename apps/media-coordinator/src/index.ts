@@ -269,9 +269,29 @@ httpServer.on('upgrade', (req, socket, head) => {
 
     // Patch onTranscriptChunk to also push over WebSocket
     const origPipeline = state.pipeline;
-    ws.on('message', (data: Buffer | ArrayBuffer) => {
+    // Binary frames are microphone audio; text frames are the founder typing.
+    // The browser sends both over this one socket so a meeting can move between
+    // speaking and typing without reconnecting.
+    ws.on('message', (data: Buffer | ArrayBuffer, isBinary: boolean) => {
       const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
-      origPipeline.sendAudio(buf);
+
+      if (isBinary) {
+        origPipeline.sendAudio(buf);
+        return;
+      }
+
+      try {
+        const msg = JSON.parse(buf.toString('utf8')) as { type?: string; text?: unknown };
+        if (msg.type === 'message' && typeof msg.text === 'string') {
+          log.info('typed message received', { sessionId });
+          origPipeline.sendTypedMessage(msg.text);
+        }
+      } catch {
+        // A text frame that is not JSON is not something this protocol defines.
+        // Ignoring it is safer than treating it as audio, which would corrupt
+        // the Deepgram stream mid-utterance.
+        log.warn('unparseable text frame ignored', { sessionId });
+      }
     });
 
     // Push transcript chunks over WS
