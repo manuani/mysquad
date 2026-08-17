@@ -220,7 +220,7 @@ describe('AgentRuntime', () => {
 
       const sarahPrompt = capturedPrompts[0] as string;
       expect(sarahPrompt).toContain('Priya Reddy, Chief Marketing Officer');
-      expect(sarahPrompt).toContain("Marcus Webb, Devil's Advocate");
+      expect(sarahPrompt).toContain('Marcus Webb, Chief of Staff');
       expect(sarahPrompt).not.toContain('Sarah Chen, Chief Financial Officer');
       expect(sarahPrompt).not.toContain('Maya');
       expect(sarahPrompt).not.toContain('Raj');

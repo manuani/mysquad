@@ -913,10 +913,21 @@
             body: JSON.stringify({ voiceSessionId }),
           }).catch(() => {});
         }
-        livekitRoom.disconnect();
-        if (audioWs) audioWs.close();
-        if (audioProcessor) audioProcessor.disconnect();
-        if (audioContext) audioContext.close();
+        // Every step is guarded. `audioProcessor.disconnect()` was left over
+        // from the ScriptProcessorNode capture path; since the MediaRecorder
+        // rewrite the handle exposes stop(), so this threw and execution never
+        // reached the redirect — the button looked dead while the meeting stayed
+        // open. Leaving is the one action that must not be blocked by teardown.
+        const safely = (label, fn) => {
+          try { fn(); } catch (e) { console.warn(`endMeeting: ${label} failed`, e); }
+        };
+
+        safely('stop advisor audio', () => interruptAdvisors('meeting ended'));
+        safely('stop capture', () => audioProcessor?.stop?.());
+        safely('close audio context', () => audioContext?.close?.());
+        safely('close socket', () => audioWs?.close());
+        safely('leave room', () => livekitRoom?.disconnect());
+
         window.location = '/demo';
       }
 

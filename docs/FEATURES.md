@@ -27,7 +27,7 @@
 | # | Feature | Endpoint |
 |---|---------|----------|
 | 2.1 | Ask a single AI advisor (Sarah Chen, CFO) | `POST /v1/agent-runtime/contributions` |
-| 2.2 | Ask the full AI team (Sarah CFO + Priya CMO + Marcus Devil's Advocate) in parallel | `POST /v1/agent-runtime/contributions/roster` |
+| 2.2 | Ask the full AI team (Sarah CFO + Priya CMO + Marcus Chief of Staff) in parallel | `POST /v1/agent-runtime/contributions/roster` |
 | 2.3 | Escalate topic to a real human expert | `POST /v1/agent-runtime/escalate` |
 | 2.4 | View escalation history | `GET /v1/agent-runtime/escalations` |
 | 2.5 | Update escalation status | `PATCH /v1/agent-runtime/escalations/:id` |
@@ -37,7 +37,7 @@
 **AI Personas:**
 - **Sarah Chen** — CFO/Financial Advisor. Finance, runway, unit economics.
 - **Priya Reddy** — CMO/Marketing Strategist. GTM, brand, customer acquisition.
-- **Marcus Webb** — Devil's Advocate. Challenges assumptions, stress-tests plans.
+- **Marcus Webb** — Chief of Staff. Whether the plan holds together: sequencing, dependencies, the real constraint. Challenges assumptions when the plan warrants it, after giving his own read.
 
 ---
 
