@@ -45,7 +45,10 @@ describe('AgentRuntime', () => {
     });
 
     expect(capturedRequest).toBeDefined();
-    expect(capturedRequest?.systemPrompt).toBe(SARAH_CFO_PERSONA.systemPrompt);
+    // The persona's prompt is followed by the shared team charter, so this
+    // contains rather than equals.
+    expect(capturedRequest?.systemPrompt).toContain(SARAH_CFO_PERSONA.systemPrompt);
+    expect(capturedRequest?.systemPrompt).toContain('You work for this founder');
     expect(capturedRequest?.systemPrompt).toContain('Sarah Chen');
     expect(capturedRequest?.systemPrompt).toContain('warm');
     expect(capturedRequest?.messages).toEqual([
@@ -69,7 +72,9 @@ describe('AgentRuntime', () => {
 
     expect(routingService.complete).toHaveBeenCalledWith(
       TENANT_CONTEXT,
-      expect.objectContaining({ systemPrompt: SARAH_CFO_PERSONA.systemPrompt }),
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining(SARAH_CFO_PERSONA.systemPrompt),
+      }),
       // No plan resolver was supplied, so routing keeps its 'starter' default.
       undefined,
       // The founder's message goes through so routing can size the model to the
@@ -167,7 +172,8 @@ describe('AgentRuntime', () => {
       brainContext: [],
     });
 
-    expect(capturedRequest?.systemPrompt).toBe(SARAH_CFO_PERSONA.systemPrompt);
+    expect(capturedRequest?.systemPrompt).toContain(SARAH_CFO_PERSONA.systemPrompt);
+    expect(capturedRequest?.systemPrompt).not.toContain('from prior sessions');
   });
 
   describe('generateRosterContributions', () => {

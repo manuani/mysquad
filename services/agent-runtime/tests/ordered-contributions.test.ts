@@ -105,9 +105,11 @@ describe('generateOrderedContributions', () => {
       { maxSpeakers: 2, skipGate: true },
     );
 
-    // Second persona's system prompt should mention what the first said
+    // Second persona's system prompt should mention what the first said, and
+    // carry the rule that stops it re-asking what the first already asked.
     expect(capturedPrompts.length).toBeGreaterThanOrEqual(2);
-    expect(capturedPrompts[1]).toContain('already responded');
+    expect(capturedPrompts[1]).toContain('already spoken in this turn');
+    expect(capturedPrompts[1]).toContain('Do not ask for it again');
   });
 
   it('skipped personas are returned separately', async () => {

@@ -23,6 +23,7 @@ import type { LlmMessage, PlanTier, RoutingService } from '@voai/routing';
 import type { EventBus } from '@voai/types';
 import type { PlanResolver } from './tenant-plan.js';
 import { analyseAddress } from './address.js';
+import { TEAM_CHARTER } from './team-charter.js';
 import type { AgentPersona } from './personas/sarah-cfo.js';
 import {
   Arbiter,
@@ -114,7 +115,7 @@ function assembleSystemPrompt(
   mode?: 'voice' | 'typed',
   brief?: { readonly title: string | null; readonly content: string } | null,
 ): string {
-  let prompt = persona.systemPrompt;
+  let prompt = `${persona.systemPrompt}\n\n${TEAM_CHARTER}`;
 
   if (teammates && teammates.length > 0) {
     const teamList = teammates.map((t) => `- ${t.name}, ${t.role}`).join('\n');
@@ -134,7 +135,7 @@ Do not explain who does what on this team, do not tell the founder which teammat
   }
 
   if (mode === 'voice') {
-    prompt += `\n\nThe founder is speaking, not typing, and your reply will be read aloud. Say the one thing that matters most and stop — two or three sentences, rarely more. This is a conversation, not a briefing.
+    prompt += `\n\nThe founder is speaking, not typing, and your reply will be read aloud. Keep it under sixty words — three sentences is usually right, four is the ceiling. Being useful and brief is the whole job here: pick the single most valuable thing you have and say only that. The guidance above about leading with your contribution still holds; it just has to fit in three sentences.
 
 Never use headings, numbered lists, bullet points or bold text; none of it survives being spoken. If you need three things from the founder, ask for the most important one and let them answer before you ask the next. Do not restate their question back to them, and do not preface with what you are about to do — just say it.
 
@@ -273,10 +274,12 @@ A ${persona.role} should respond when the topic directly touches their domain. S
           input.mode,
           input.brief,
         ),
-        // A hard ceiling as well as an instruction. Prompt guidance alone lets
-        // a model run long on a question it finds interesting, and in voice
-        // that lands as a monologue nobody can stop.
-        ...(input.mode === 'voice' ? { maxTokens: 220 } : {}),
+        // Headroom above what the voice guidance asks for, so a compliant
+        // reply always finishes its sentence. An earlier 220 cut a 173-word
+        // answer off mid-word, and a spoken reply that trails away is worse
+        // than one that runs slightly long. Brevity is enforced by the prompt;
+        // this only stops a runaway.
+        ...(input.mode === 'voice' ? { maxTokens: 400 } : {}),
         messages,
         requestId: input.requestId,
       },
@@ -494,7 +497,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
         const priorBlock = priorResponses
           .map((c, idx) => `${ranked[idx]!.persona.name}: ${c}`)
           .join('\n\n');
-        const priorNote = `Your teammates in this turn have already responded:\n${priorBlock}\n\nAdd your perspective. You may reference what they said, but do not simply repeat it.`;
+        const priorNote = `Your teammates have already spoken in this turn:\n${priorBlock}\n\nAnything they asked the founder for is already on the table. Do not ask for it again, do not say you need the same thing, and do not spend your turn agreeing that it was a good question. Assume the founder will answer them.\n\nYour turn adds what your lane adds and nothing else. If their point covers the ground you would have covered, say the one thing you would add and stop — a short contribution is better than a restatement.\n\nIf a teammate has already put a question to the founder, do not end on one too. One question per turn is a conversation; three is an interview. Give the founder something to act on and let them answer whoever asked first.`;
         priorContext = [...(input.brainContext ?? []), priorNote];
       }
 
