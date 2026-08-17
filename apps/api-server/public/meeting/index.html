@@ -589,7 +589,7 @@
         recorder.start(250); // 250ms timeslices
         console.log('STT MediaRecorder started', mimeType);
 
-        const bargeIn = await startBargeInDetection();
+        const bargeIn = startBargeInDetection(rawStream);
 
         audioProcessor = {
           recorder,
@@ -604,38 +604,42 @@
        * Watches for the founder starting to talk while an advisor is speaking,
        * and cuts the advisor off when they do.
        *
-       * This needs its own stream. The STT capture deliberately runs with echo
-       * cancellation off — with LiveKit's WebRTC pipeline active, Chrome's
-       * canceller treats the founder's own voice as echo and removes it. But
-       * for barge-in the opposite is required: without cancellation the
-       * advisor's synthesised voice comes back through the speakers and reads
-       * as the founder interrupting, so the advisors would cut themselves off
-       * mid-sentence.
+       * Analyses the stream already opened for transcription rather than
+       * opening its own. An earlier version called getUserMedia a second time
+       * with echo cancellation on, which meant three concurrent opens of the
+       * same microphone counting LiveKit's — and requesting a device with
+       * conflicting echo-cancellation settings can put Chrome into a mode that
+       * silences the very stream being transcribed, which is the bug this whole
+       * feature was meant to help with.
+       *
+       * The trade-off: with no cancellation, an advisor played through
+       * loudspeakers can be heard by the microphone. The threshold is set high
+       * enough that ordinary playback does not trip it, and a run of loud
+       * frames is required, so a cough or a keystroke does not silence anyone.
+       * On headphones there is no echo path at all.
        */
-      async function startBargeInDetection() {
-        let stream;
+      function startBargeInDetection(stream) {
+        if (!stream) return null;
+
+        let ctx;
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          });
+          ctx = new AudioContext();
         } catch (e) {
-          console.warn('barge-in detection unavailable — advisors will not be interruptible', e);
+          console.warn('barge-in unavailable — advisors will not be interruptible', e);
           return null;
         }
+        void ctx.resume();
 
-        const ctx = new AudioContext();
-        await ctx.resume();
         const source = ctx.createMediaStreamSource(stream);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
         source.connect(analyser);
 
         const buf = new Float32Array(analyser.fftSize);
-        // Speech sits well above room noise on an AGC'd stream. Requiring a run
-        // of loud frames keeps a cough, a keystroke or a door from silencing an
-        // advisor mid-sentence.
-        const SPEECH_RMS = 0.025;
-        const FRAMES_TO_CONFIRM = 3; // ~150ms of continuous speech
+        // Higher than the echo-cancelled version used, because loudspeaker
+        // playback now reaches this stream.
+        const SPEECH_RMS = 0.045;
+        const FRAMES_TO_CONFIRM = 5; // ~250ms of sustained speech
         let loudFrames = 0;
         let raf = null;
 
@@ -662,7 +666,8 @@
         return {
           stop() {
             if (raf) cancelAnimationFrame(raf);
-            stream.getTracks().forEach((t) => t.stop());
+            // The stream belongs to the recorder — stopping its tracks here
+            // would end transcription too.
             void ctx.close();
           },
         };
