@@ -70,7 +70,8 @@ voai-platform/
 │   └── terraform/          # IaC for AWS staging, ap-south-1 (populated)
 ├── evals/                  # Evaluation harness — populated in Sprint 5.3
 ├── docs/
-│   └── adr/                # Architecture Decision Records (see docs/adr/README.md)
+│   ├── adr/                # Architecture Decision Records (see docs/adr/README.md)
+│   └── PRODUCT_BACKLOG.md  # Wanted but deliberately not built yet
 └── scripts/                # Repo automation
 ```
 
