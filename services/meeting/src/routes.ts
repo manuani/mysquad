@@ -21,6 +21,7 @@ import { startSession, getSession, endSession, type SessionMode } from './sessio
 import { appendTranscriptEntry, getTranscript, type SpeakerType } from './transcript.js';
 import { deleteBrief, getBrief, saveBrief } from './brief.js';
 import { listMeetings } from './session-list.js';
+import { deleteDocument, listDocuments, shareDocument } from './documents.js';
 import type { SseManager } from './sse.js';
 import { AccessToken } from 'livekit-server-sdk';
 
@@ -184,6 +185,49 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
     try {
       const tenantContext = tenantContextFromHeaders(req);
       const removed = await deleteBrief(tenantContext, postgres, requireParam(req, 'id'));
+      res.status(removed ? 204 : 404).send();
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  // ── Shared documents ─────────────────────────────────────────────────────
+  // Material handed to the team, before the meeting or during it. Separate from
+  // the agenda: several, ordered, and each learned when it arrives.
+  router.post('/sessions/:id/documents', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const body = req.body as Record<string, unknown>;
+
+      const document = await shareDocument(tenantContext, postgres, {
+        sessionId: requireParam(req, 'id'),
+        ...(typeof body.fileBase64 === 'string' ? { fileBase64: body.fileBase64 } : {}),
+        ...(typeof body.filename === 'string' ? { filename: body.filename } : {}),
+        ...(typeof body.text === 'string' ? { text: body.text } : {}),
+        ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      });
+      res.status(201).json(document);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.get('/sessions/:id/documents', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const documents = await listDocuments(tenantContext, postgres, requireParam(req, 'id'));
+      res.status(200).json({ documents });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.delete('/sessions/:id/documents/:documentId', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const documentId = req.params['documentId'];
+      if (!documentId) throw new ValidationError('documentId path parameter is required');
+      const removed = await deleteDocument(tenantContext, postgres, documentId);
       res.status(removed ? 204 : 404).send();
     } catch (err) {
       handleError(err, res, log);

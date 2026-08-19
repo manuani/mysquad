@@ -24,6 +24,7 @@ import type { EventBus } from '@voai/types';
 import type { PlanResolver } from './tenant-plan.js';
 import { analyseAddress } from './address.js';
 import { TEAM_CHARTER } from './team-charter.js';
+import { personalityGuidance, type TeamPersonality } from './personality.js';
 import type { AgentPersona } from './personas/sarah-cfo.js';
 import {
   Arbiter,
@@ -83,6 +84,25 @@ export interface AgentContributionInput {
    * than opening with "what is this about?".
    */
   readonly brief?: { readonly title: string | null; readonly content: string } | null;
+  /**
+   * Material the founder shared, oldest first. Distinct from the brief: these
+   * arrive during the conversation, and when each landed is part of what it
+   * means.
+   */
+  readonly documents?: readonly SharedDocument[];
+  /**
+   * How this founder wants the team to behave for this company. Absent means
+   * unconfigured, which behaves exactly as before.
+   */
+  readonly personality?: TeamPersonality | null;
+}
+
+/** A document handed to the team, with where in the conversation it arrived. */
+export interface SharedDocument {
+  readonly title: string | null;
+  readonly filename: string | null;
+  readonly content: string;
+  readonly sharedAfterSequence: number | null;
 }
 
 /**
@@ -115,8 +135,12 @@ function assembleSystemPrompt(
   mode?: 'voice' | 'typed',
   brief?: { readonly title: string | null; readonly content: string } | null,
   priorTurns?: readonly ConversationTurn[],
+  documents?: readonly SharedDocument[],
+  personality?: TeamPersonality | null,
 ): string {
-  let prompt = `${persona.systemPrompt}\n\n${TEAM_CHARTER}`;
+  // The founder's settings come after the charter so they read as adjustments
+  // to how the team works, not as competing instructions.
+  let prompt = `${persona.systemPrompt}\n\n${TEAM_CHARTER}${personalityGuidance(personality)}`;
 
   if (teammates && teammates.length > 0) {
     const teamList = teammates.map((t) => `- ${t.name}, ${t.role}`).join('\n');
@@ -156,6 +180,25 @@ If you genuinely cannot help without more information, ask one short question. A
     prompt += `\n\nThe founder circulated this before the meeting${brief.title ? ` — "${brief.title}"` : ''}:\n\n${brief.content}\n\nYou have read it. Do not ask them for anything it already answers, do not summarise it back to them, and do not open by acknowledging that you read it. Use it the way a colleague who did the reading would: come in with a view.
 
 Where it leaves something out that you genuinely need, ask for that one thing specifically rather than asking them to explain the whole picture again.`;
+  }
+
+  if (documents && documents.length > 0) {
+    const shared = documents
+      .map((d, i) => {
+        const label = d.title ?? d.filename ?? `Document ${i + 1}`;
+        // Whether it was on the table from the start or handed over mid
+        // conversation. A document shared at turn ten, presented as though it
+        // had always been available, makes the team's earlier answers look
+        // negligent and misrepresents what they knew.
+        const when =
+          d.sharedAfterSequence === null
+            ? 'shared before the meeting'
+            : 'shared partway through this conversation';
+        return `--- ${label} (${when}) ---\n${d.content}`;
+      })
+      .join('\n\n');
+
+    prompt += `\n\nThe founder has shared this material with the team:\n\n${shared}\n\nTreat anything shared partway through as new information you have just read — react to what it actually says rather than pretending you knew it all along, and do not summarise it back to them. Where it changes a view you gave earlier, say so plainly.`;
   }
 
   if (brainContext && brainContext.length > 0) {
@@ -284,6 +327,8 @@ A ${persona.role} should respond when the topic directly touches their domain. S
           input.mode,
           input.brief,
           input.priorTurns,
+          input.documents,
+          input.personality,
         ),
         // Headroom above what the voice guidance asks for, so a compliant
         // reply always finishes its sentence. An earlier 220 cut a 173-word
@@ -522,6 +567,8 @@ A ${persona.role} should respond when the topic directly touches their domain. S
         },
         mode: input.mode,
         brief: input.brief,
+        documents: input.documents,
+        personality: input.personality,
       });
 
       priorResponses.push(contribution.content);

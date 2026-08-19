@@ -73,3 +73,8 @@ export default meetingModule;
 
 export { listMeetings } from './session-list.js';
 export type { MeetingSummary } from './session-list.js';
+
+export { shareDocument, listDocuments, deleteDocument, MAX_DOCUMENT_CHARS } from './documents.js';
+export type { MeetingDocument } from './documents.js';
+export { extractText, kindForFilename, MAX_FILE_BYTES } from './extract-text.js';
+export type { ExtractedDocument, DocumentKind } from './extract-text.js';

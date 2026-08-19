@@ -32,6 +32,7 @@
     "@voai/config": "workspace:*",
     "@voai/db": "workspace:*",
     "@voai/errors": "workspace:*",
+    "@voai/identity-and-tenancy": "workspace:*",
     "@voai/marketplace": "workspace:*",
     "@voai/marketplace-metering": "workspace:*",
     "@voai/meeting": "workspace:*",

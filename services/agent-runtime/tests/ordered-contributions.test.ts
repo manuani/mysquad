@@ -78,11 +78,10 @@ describe('generateOrderedContributions', () => {
 
   it('second persona prompt includes first persona response as context', async () => {
     const capturedPrompts: string[] = [];
-    let gateCall = 0;
 
     const routing = makeRouting((req) => {
+      // The relevance gate, identified by its 80-token cap.
       if (req.maxTokens === 80) {
-        gateCall++;
         return {
           content: '{"shouldRespond":true,"relevanceScore":0.9,"reason":"ok"}',
           model: 'fake',

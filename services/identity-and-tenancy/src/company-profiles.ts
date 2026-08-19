@@ -26,6 +26,14 @@ export interface CompanyProfile {
   readonly industry: string | null;
   readonly isDefault: boolean;
   readonly createdAt: string;
+  /**
+   * How the founder wants their team to behave for this company. Null
+   * throughout when never configured, which reads as "as before".
+   */
+  readonly challengeLevel: string | null;
+  readonly replyLength: string | null;
+  readonly formality: string | null;
+  readonly teamInstructions: string | null;
 }
 
 export interface CreateProfileInput {
@@ -41,6 +49,24 @@ export interface UpdateProfileInput {
   readonly description?: string;
   readonly industry?: string;
   readonly isDefault?: boolean;
+  /** 'light' | 'balanced' | 'hard' */
+  readonly challengeLevel?: string;
+  /** 'brief' | 'standard' | 'thorough' */
+  readonly replyLength?: string;
+  /** 'casual' | 'neutral' | 'formal' */
+  readonly formality?: string;
+  readonly teamInstructions?: string;
+}
+
+const CHALLENGE_LEVELS = ['light', 'balanced', 'hard'];
+const REPLY_LENGTHS = ['brief', 'standard', 'thorough'];
+const FORMALITIES = ['casual', 'neutral', 'formal'];
+const MAX_INSTRUCTIONS_CHARS = 800;
+
+function assertOneOf(value: string | undefined, allowed: string[], field: string): void {
+  if (value !== undefined && !allowed.includes(value)) {
+    throw new ValidationError(`${field} must be one of ${allowed.join(', ')}`);
+  }
 }
 
 const MAX_NAME_CHARS = 120;
@@ -52,6 +78,10 @@ interface ProfileSqlRow {
   industry: string | null;
   is_default: boolean;
   created_at: Date;
+  challenge_level: string | null;
+  reply_length: string | null;
+  formality: string | null;
+  team_instructions: string | null;
 }
 
 function toProfile(row: ProfileSqlRow): CompanyProfile {
@@ -62,10 +92,16 @@ function toProfile(row: ProfileSqlRow): CompanyProfile {
     industry: row.industry,
     isDefault: row.is_default,
     createdAt: new Date(row.created_at).toISOString(),
+    challengeLevel: row.challenge_level,
+    replyLength: row.reply_length,
+    formality: row.formality,
+    teamInstructions: row.team_instructions,
   };
 }
 
-const SELECT_COLUMNS = 'id, name, description, industry, is_default, created_at';
+const SELECT_COLUMNS =
+  'id, name, description, industry, is_default, created_at, ' +
+  'challenge_level, reply_length, formality, team_instructions';
 
 export async function listProfiles(
   tenantContext: TenantContext,
@@ -164,6 +200,17 @@ export async function updateProfile(
   const name = input.name?.trim();
   if (input.name !== undefined && !name) throw new ValidationError('name cannot be empty');
 
+  // Validated here rather than relying on the CHECK constraints, so a bad
+  // value is a 400 naming the field instead of a 500 from Postgres.
+  assertOneOf(input.challengeLevel, CHALLENGE_LEVELS, 'challengeLevel');
+  assertOneOf(input.replyLength, REPLY_LENGTHS, 'replyLength');
+  assertOneOf(input.formality, FORMALITIES, 'formality');
+  if (input.teamInstructions && input.teamInstructions.length > MAX_INSTRUCTIONS_CHARS) {
+    throw new ValidationError(
+      `teamInstructions must be ${MAX_INSTRUCTIONS_CHARS} characters or fewer`,
+    );
+  }
+
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
     if (input.isDefault === true) {
       await client.query(
@@ -174,11 +221,15 @@ export async function updateProfile(
 
     const result = await client.query<ProfileSqlRow>(
       `UPDATE company_profiles
-          SET name        = COALESCE($2, name),
-              description = COALESCE($3, description),
-              industry    = COALESCE($4, industry),
-              is_default  = COALESCE($5, is_default),
-              updated_at  = now()
+          SET name              = COALESCE($2, name),
+              description       = COALESCE($3, description),
+              industry          = COALESCE($4, industry),
+              is_default        = COALESCE($5, is_default),
+              challenge_level   = COALESCE($6, challenge_level),
+              reply_length      = COALESCE($7, reply_length),
+              formality         = COALESCE($8, formality),
+              team_instructions = COALESCE($9, team_instructions),
+              updated_at        = now()
         WHERE id = $1
       RETURNING ${SELECT_COLUMNS}`,
       [
@@ -187,6 +238,10 @@ export async function updateProfile(
         input.description?.trim() ?? null,
         input.industry?.trim() ?? null,
         input.isDefault ?? null,
+        input.challengeLevel ?? null,
+        input.replyLength ?? null,
+        input.formality ?? null,
+        input.teamInstructions?.trim() ?? null,
       ],
     );
 

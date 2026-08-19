@@ -359,7 +359,7 @@
         <textarea id="brief-input" rows="5"
           placeholder="e.g. We're launching iTrendFast in October. Need a go-to-market plan and a view on whether the budget holds."
           style="width:100%;background:#0f1117;border:1px solid #2d3748;border-radius:8px;padding:10px 14px;color:#e2e8f0;font-size:13px;margin-bottom:8px;outline:none;font-family:inherit;resize:vertical"></textarea>
-        <input type="file" id="brief-file-input" accept=".txt,.md,.markdown,text/plain"
+        <input type="file" id="brief-file-input" accept=".txt,.md,.markdown,.pdf,.docx,.pptx"
           style="font-size:12px;color:#718096;margin-bottom:6px" />
         <p id="brief-status" style="font-size:11px;color:#718096;margin-bottom:12px"></p>
 
@@ -1365,19 +1365,45 @@
       // Word) is left to the founder to paste: extracting text from those in
       // the browser needs a parser per format, and a wrong extraction would
       // feed the advisors a garbled agenda they would treat as fact.
+      /** The attachment waiting to be extracted, for anything that is not plain text. */
+      let pendingBriefFile = null;
+
       document.getElementById('brief-file-input')?.addEventListener('change', async (e) => {
         const file = e.target.files?.[0];
         const status = document.getElementById('brief-status');
         if (!file) return;
+
+        const titleEl = document.getElementById('brief-title-input');
+        if (titleEl && !titleEl.value) titleEl.value = file.name.replace(/\.[^.]+$/, '');
+        briefFilename = file.name;
+
+        // Text and markdown are readable here, so the founder sees the content
+        // immediately and can edit it. PDF, Word and PowerPoint need a parser
+        // per format — extraction happens server-side, where there is one
+        // implementation to fix rather than three shipped to every browser.
+        if (/\.(txt|md|markdown)$/i.test(file.name)) {
+          try {
+            const text = await file.text();
+            document.getElementById('brief-input').value = text;
+            pendingBriefFile = null;
+            status.textContent = `Loaded ${file.name} — ${text.length.toLocaleString()} characters`;
+          } catch (err) {
+            status.textContent = `Could not read ${file.name}. Paste the text instead.`;
+            console.warn('brief file read failed', err);
+          }
+          return;
+        }
+
         try {
-          const text = await file.text();
-          document.getElementById('brief-input').value = text;
-          const titleEl = document.getElementById('brief-title-input');
-          if (!titleEl.value) titleEl.value = file.name.replace(/\.[^.]+$/, '');
-          briefFilename = file.name;
-          status.textContent = `Loaded ${file.name} — ${text.length.toLocaleString()} characters`;
+          const buffer = await file.arrayBuffer();
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          pendingBriefFile = { filename: file.name, base64: btoa(binary) };
+          status.textContent = `${file.name} attached — your advisors will read it when you join.`;
         } catch (err) {
-          status.textContent = `Could not read ${file.name}. Paste the text instead.`;
+          pendingBriefFile = null;
+          status.textContent = `Could not attach ${file.name}. Paste the text instead.`;
           console.warn('brief file read failed', err);
         }
       });
@@ -1417,6 +1443,35 @@
           // The meeting still runs; it just will not be remembered.
           console.warn('meeting session create failed — this meeting will not be saved', err);
           return null;
+        }
+
+        // An attachment is shared as a document rather than as the agenda:
+        // extraction happens on the server, and a founder may add several.
+        if (pendingBriefFile) {
+          try {
+            const res = await fetch(`${API}/v1/meeting/sessions/${session.id}/documents`, {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                filename: pendingBriefFile.filename,
+                fileBase64: pendingBriefFile.base64,
+              }),
+            });
+            const status = document.getElementById('brief-status');
+            if (res.ok) {
+              const doc = await res.json();
+              if (status) {
+                status.textContent = `Read ${doc.filename} — ${doc.content.length.toLocaleString()} characters shared with your advisors.`;
+              }
+            } else if (status) {
+              // Say what went wrong: a founder whose deck was rejected needs to
+              // know it was, or they will assume the team has read it.
+              const err = await res.json().catch(() => ({}));
+              status.textContent = err.message ?? `Could not read ${pendingBriefFile.filename}.`;
+            }
+          } catch (err) {
+            console.warn('document share failed', err);
+          }
         }
 
         const content = (document.getElementById('brief-input')?.value ?? '').trim();

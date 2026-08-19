@@ -17,7 +17,15 @@
 | 1.5 | Delete account (GDPR erasure) | `DELETE /v1/identity-and-tenancy/me?confirm=true` |
 | 1.6 | List the founder's companies | `GET /v1/identity-and-tenancy/company-profiles` |
 | 1.7 | Add a company | `POST /v1/identity-and-tenancy/company-profiles` |
-| 1.8 | Rename a company, or make it the default | `PATCH /v1/identity-and-tenancy/company-profiles/:id` |
+| 1.8 | Rename a company, make it default, or set how the team behaves | `PATCH /v1/identity-and-tenancy/company-profiles/:id` |
+
+**Team personality.** Per company, since the same founder wants a different
+register for a board-facing business than for an early experiment.
+`challengeLevel` (light / balanced / hard), `replyLength` (brief / standard /
+thorough), `formality` (casual / neutral / formal), and `teamInstructions` for
+anything the presets cannot express. All optional — unset behaves exactly as
+before, and the settings that match the standing charter add nothing to the
+prompt rather than repeating it.
 
 **Company profiles.** A tenant is the *account* — billing, plan, users,
 entitlements. A company profile is a business inside it, and a founder may run
@@ -77,6 +85,21 @@ notification preferences. Those belong to the person or the account.
 | 3.9 | Read the brief | `GET /v1/meeting/sessions/:id/brief` |
 | 3.10 | Remove the brief | `DELETE /v1/meeting/sessions/:id/brief` |
 | 3.11 | List and search past meetings | `GET /v1/meeting/sessions?q=…&limit=…` |
+| 3.12 | Share a document with the team | `POST /v1/meeting/sessions/:id/documents` |
+| 3.13 | List shared documents | `GET /v1/meeting/sessions/:id/documents` |
+| 3.14 | Remove a shared document | `DELETE /v1/meeting/sessions/:id/documents/:documentId` |
+
+**Shared documents.** `.pdf`, `.docx`, `.pptx`, `.txt` and `.md`, up to 15MB,
+extracted server-side — one implementation to fix rather than three parsers
+shipped to the browser. Body is `{ filename, fileBase64 }`, or `{ text, title }`
+to share a pasted link or figure. PowerPoint pulls speaker notes alongside slide
+text, because a deck's argument usually lives in the notes.
+
+Distinct from the agenda: several per meeting, and each records where in the
+conversation it arrived. Anything shared partway through is presented to the
+advisors as new information they have just read, so their earlier answers do not
+read as negligent. Extraction that yields nothing — a scanned PDF is images of
+text — is refused rather than silently handing the team an empty brief.
 
 **Resuming a meeting.** `GET /v1/meeting/sessions` returns past meetings newest
 first, each with its agenda title, the founder's opening line, which advisors

@@ -1,7 +1,8 @@
 # Product Backlog
 
 Work that is wanted but deliberately not built yet, with enough context to pick
-up cold. Distinct from `handoff/VERIFICATION_BACKLOG.md`, which tracks gaps
+up cold. Items marked Done are kept rather than deleted — the context that
+shaped them is the part worth having when they are revisited. Distinct from `handoff/VERIFICATION_BACKLOG.md`, which tracks gaps
 between the implementation and System Architecture v2.
 
 Each item records what it is, why it came up, and what is already known — the
@@ -12,7 +13,7 @@ meetings rather than reasoned about in advance.
 
 ## 1 — Configurable agent personality
 
-**Status:** Backlog · **Raised:** 2026-08-17, from live testing
+**Status:** Done, 2026-08-19 · **Raised:** 2026-08-17, from live testing
 
 Let the founder shape how each agent behaves, rather than shipping one fixed
 disposition per persona.
@@ -83,7 +84,7 @@ trusting the prompt to hold, and to enforce what can be enforced structurally
 
 ## 2 — Accept PDF, Word and PowerPoint as meeting briefs
 
-**Status:** Backlog · **Raised:** 2026-08-17, from live testing
+**Status:** Done, 2026-08-19 · **Raised:** 2026-08-17, from live testing
 
 The agenda upload takes `.txt` and `.md` only. Founders' actual material is a
 pitch deck, a board doc, or a one-pager — `.pdf`, `.docx`, `.pptx`. Anything
@@ -141,7 +142,7 @@ this before adding a second document pipeline beside it.
 
 ## 3 — Share reading material during the meeting
 
-**Status:** Backlog · **Raised:** 2026-08-17, from live testing
+**Status:** Done, 2026-08-19 · **Raised:** 2026-08-17, from live testing
 
 The founder can attach an agenda before joining, but not hand anything to the
 team once the meeting is running. Real meetings do not work that way — the

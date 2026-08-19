@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Arbiter, DEFAULT_MAX_SPEAKERS } from '../src/arbiter.js';
 import type { GatedPersona } from '../src/arbiter.js';
 

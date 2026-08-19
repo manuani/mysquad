@@ -22,7 +22,8 @@ import { matchExperts } from '@voai/marketplace';
 import { recordMeteringEvent } from '@voai/marketplace-metering';
 import { AgentRuntime } from './agent-runtime.js';
 import { createPlanResolver } from './tenant-plan.js';
-import { getBrief, getSession } from '@voai/meeting';
+import { getBrief, getSession, listDocuments } from '@voai/meeting';
+import { getProfile } from '@voai/identity-and-tenancy';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
 import { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
@@ -109,6 +110,33 @@ export function buildAgentRuntimeRouter(
             .catch(() => undefined)
         : undefined;
 
+      // Material the founder handed over, oldest first. Failing to read it must
+      // never block the meeting — the advisors simply have not seen it.
+      const documents = meetingSessionIdForScope
+        ? await listDocuments(tenantContext, postgres, meetingSessionIdForScope).catch(
+            (err: unknown) => {
+              log.warn('document fetch failed, continuing without them', { err: String(err) });
+              return [];
+            },
+          )
+        : [];
+
+      // The founder's preferences for this company, if they set any.
+      const personality = companyProfileId
+        ? await getProfile(tenantContext, postgres, companyProfileId)
+            .then((p) =>
+              p
+                ? {
+                    challengeLevel: p.challengeLevel as never,
+                    replyLength: p.replyLength as never,
+                    formality: p.formality as never,
+                    teamInstructions: p.teamInstructions,
+                  }
+                : null,
+            )
+            .catch(() => null)
+        : null;
+
       const brainContext = await fetchBrainContextForMessage(
         tenantContext,
         postgres,
@@ -124,6 +152,10 @@ export function buildAgentRuntimeRouter(
         message: body.message,
         brainContext,
         requestId,
+        // Asking one advisor should read the same material and respect the same
+        // preferences as asking the room.
+        documents,
+        personality,
       });
 
       postgres
@@ -176,6 +208,33 @@ export function buildAgentRuntimeRouter(
             .then((s) => s?.companyProfileId ?? undefined)
             .catch(() => undefined)
         : undefined;
+
+      // Material the founder handed over, oldest first. Failing to read it must
+      // never block the meeting — the advisors simply have not seen it.
+      const documents = meetingSessionIdForScope
+        ? await listDocuments(tenantContext, postgres, meetingSessionIdForScope).catch(
+            (err: unknown) => {
+              log.warn('document fetch failed, continuing without them', { err: String(err) });
+              return [];
+            },
+          )
+        : [];
+
+      // The founder's preferences for this company, if they set any.
+      const personality = companyProfileId
+        ? await getProfile(tenantContext, postgres, companyProfileId)
+            .then((p) =>
+              p
+                ? {
+                    challengeLevel: p.challengeLevel as never,
+                    replyLength: p.replyLength as never,
+                    formality: p.formality as never,
+                    teamInstructions: p.teamInstructions,
+                  }
+                : null,
+            )
+            .catch(() => null)
+        : null;
 
       const brainContext = await fetchBrainContextForMessage(
         tenantContext,
@@ -230,7 +289,16 @@ export function buildAgentRuntimeRouter(
       const { ordered, skipped } = await runtime.generateOrderedContributions(
         tenantContext,
         ROSTER,
-        { message: body.message, brainContext, requestId, mode, brief, priorTurns },
+        {
+          message: body.message,
+          brainContext,
+          requestId,
+          mode,
+          brief,
+          priorTurns,
+          documents,
+          personality,
+        },
       );
 
       postgres

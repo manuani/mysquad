@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@voai/admin-console-api": "workspace:*",
-    "@voai/voice-gateway": "workspace:*",
     "@voai/agent-runtime": "workspace:*",
     "@voai/audit": "workspace:*",
     "@voai/brain": "workspace:*",
@@ -34,6 +33,7 @@
     "@voai/routing": "workspace:*",
     "@voai/telemetry": "workspace:*",
     "@voai/types": "workspace:*",
+    "@voai/voice-gateway": "workspace:*",
     "express": "^4.21.0",
     "express-rate-limit": "^8.5.2"
   },

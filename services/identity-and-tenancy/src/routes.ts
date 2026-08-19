@@ -233,6 +233,13 @@ export function buildIdentityAndTenancyRouter(
         ...(typeof body.description === 'string' ? { description: body.description } : {}),
         ...(typeof body.industry === 'string' ? { industry: body.industry } : {}),
         ...(typeof body.isDefault === 'boolean' ? { isDefault: body.isDefault } : {}),
+        // How this founder wants the team to behave for this company.
+        ...(typeof body.challengeLevel === 'string' ? { challengeLevel: body.challengeLevel } : {}),
+        ...(typeof body.replyLength === 'string' ? { replyLength: body.replyLength } : {}),
+        ...(typeof body.formality === 'string' ? { formality: body.formality } : {}),
+        ...(typeof body.teamInstructions === 'string'
+          ? { teamInstructions: body.teamInstructions }
+          : {}),
       });
       res.status(200).json(profile);
     } catch (err) {
