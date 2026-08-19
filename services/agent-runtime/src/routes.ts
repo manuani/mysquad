@@ -70,6 +70,14 @@ function handleError(err: unknown, res: Response, log: Logger): void {
   res.status(500).json({ error: 'INTERNAL', message: 'unexpected error' });
 }
 
+/**
+ * How much of the conversation travels with each turn. Prior turns are inlined
+ * into every persona's prompt, so this is a per-turn cost that grows with the
+ * meeting. Six exchanges is enough to follow a thread; older context belongs in
+ * the brain rather than in every request.
+ */
+const MAX_PRIOR_TURNS = 12;
+
 export function buildAgentRuntimeRouter(
   routingService: RoutingService,
   log: Logger,
@@ -137,6 +145,7 @@ export function buildAgentRuntimeRouter(
         sessionId?: unknown;
         mode?: unknown;
         meetingSessionId?: unknown;
+        priorTurns?: unknown;
       };
       if (typeof body.message !== 'string' || body.message.trim().length === 0) {
         throw new ValidationError('message is required');
@@ -155,6 +164,29 @@ export function buildAgentRuntimeRouter(
       const requestId = (res.locals['requestId'] as string | undefined) ?? undefined;
       const mode = body.mode === 'voice' ? 'voice' : 'typed';
 
+      // What has already been said in this conversation. `priorTurns` was
+      // threaded through agent-runtime from the start but never populated by
+      // this route, so every turn was dispatched with only the latest utterance
+      // — advisors could not refer back to anything said earlier in the meeting
+      // they were in, which reads as an advisor who was not listening.
+      const priorTurns = Array.isArray(body.priorTurns)
+        ? body.priorTurns
+            .filter(
+              (t): t is { role: string; content: string } =>
+                typeof t === 'object' &&
+                t !== null &&
+                typeof (t as { content?: unknown }).content === 'string',
+            )
+            .map((t) => ({
+              role: t.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+              content: t.content,
+            }))
+            // Bounded here as well as by the caller: prior turns are inlined
+            // into every persona's prompt, so an unbounded history would
+            // inflate the cost of every later turn in a long meeting.
+            .slice(-MAX_PRIOR_TURNS)
+        : undefined;
+
       // The agenda the founder uploaded before the meeting, if any. Read via
       // @voai/meeting's typed export rather than querying its tables directly
       // (CLAUDE.md "Module boundaries are real"). A missing or unreadable brief
@@ -172,7 +204,7 @@ export function buildAgentRuntimeRouter(
       const { ordered, skipped } = await runtime.generateOrderedContributions(
         tenantContext,
         ROSTER,
-        { message: body.message, brainContext, requestId, mode, brief },
+        { message: body.message, brainContext, requestId, mode, brief, priorTurns },
       );
 
       postgres

@@ -1227,17 +1227,29 @@
        * a meeting without one is the normal case and must still start.
        */
       async function saveBriefIfProvided() {
-        const content = (document.getElementById('brief-input')?.value ?? '').trim();
-        if (!content) return null;
-
-        const status = document.getElementById('brief-status');
+        // A meeting session is created whether or not there is an agenda: it is
+        // what the transcript is written against, so without one the
+        // conversation is not stored and cannot be resumed. It used to be
+        // created only when a brief was uploaded, which meant most meetings
+        // vanished when they ended.
+        let session;
         try {
           const sessionRes = await fetch(`${API}/v1/meeting/sessions`, {
             method: 'POST', headers: authHeaders(), body: JSON.stringify({ mode: 'voice' }),
           });
           if (!sessionRes.ok) throw new Error(`session create failed (${sessionRes.status})`);
-          const session = await sessionRes.json();
+          session = await sessionRes.json();
+        } catch (err) {
+          // The meeting still runs; it just will not be remembered.
+          console.warn('meeting session create failed — this meeting will not be saved', err);
+          return null;
+        }
 
+        const content = (document.getElementById('brief-input')?.value ?? '').trim();
+        if (!content) return session.id;
+
+        const status = document.getElementById('brief-status');
+        try {
           const title = (document.getElementById('brief-title-input')?.value ?? '').trim();
           const briefRes = await fetch(`${API}/v1/meeting/sessions/${session.id}/brief`, {
             method: 'PUT', headers: authHeaders(),
@@ -1252,10 +1264,11 @@
           status.textContent = 'Agenda shared with your advisors.';
           return session.id;
         } catch (err) {
-          // Never block the meeting over the agenda — start without it.
+          // Never block the meeting over the agenda. The session still stands,
+          // so the conversation is still recorded — only the agenda is missing.
           console.warn('brief upload failed, joining without it', err);
-          status.textContent = 'Could not share the agenda — joining without it.';
-          return null;
+          if (status) status.textContent = 'Could not share the agenda — joining without it.';
+          return session.id;
         }
       }
 

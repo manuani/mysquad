@@ -17,6 +17,7 @@ import type { WhipPublisher } from './whip-publisher.js';
 import { voiceForPersona } from './voice-personas.js';
 import { createTurnDetector } from './turn-detector.js';
 import { toSpeakable } from './speakable.js';
+import { createConversation } from './conversation.js';
 
 export interface PipelineContribution {
   readonly agentName: string;
@@ -93,9 +94,31 @@ export function createPipelineSession(
   let pendingTranscript = '';
   let processingUtterance = false;
 
+  // What has been said so far. Carries prior turns into each request so the
+  // advisors can follow the conversation, and writes both sides to the meeting
+  // service so it survives the meeting.
+  const conversation = createConversation({
+    ...(opts.meetingSessionId ? { meetingSessionId: opts.meetingSessionId } : {}),
+    apiServerUrl: opts.apiServerUrl,
+    authHeaders: opts.authHeaders,
+    onError: opts.onError,
+  });
+
+  // Anything said before this meeting was resumed. Fire-and-forget: the founder
+  // may speak before it lands, and a missing history is a worse meeting rather
+  // than a broken one.
+  void conversation.restore();
+
   async function processUtterance(text: string): Promise<void> {
     if (processingUtterance || !text.trim()) return;
     processingUtterance = true;
+
+    // Captured before the request so `conversation.history()` below is the
+    // conversation *up to* this turn, not including it — the founder's message
+    // travels as `message`, and repeating it as the last prior turn would show
+    // the advisors the same words twice.
+    const priorTurns = conversation.history().slice();
+    conversation.recordFounder(text);
 
     try {
       const response = await fetch(`${opts.apiServerUrl}/v1/agent-runtime/contributions/roster`, {
@@ -109,6 +132,8 @@ export function createPipelineSession(
           sessionId: opts.sessionId,
           mode: 'voice',
           ...(opts.meetingSessionId ? { meetingSessionId: opts.meetingSessionId } : {}),
+          // Recorded before dispatch so the advisors see the exchange in order.
+          priorTurns,
         }),
       });
 
@@ -176,6 +201,7 @@ export function createPipelineSession(
           }),
       );
 
+      for (const c of contributions) conversation.recordAdvisor(c.agentName, c.text);
       opts.onContributions(contributions);
     } catch (err) {
       opts.onError(err instanceof Error ? err : new Error(String(err)));

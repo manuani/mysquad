@@ -114,6 +114,7 @@ function assembleSystemPrompt(
   register?: { readonly isSocial: boolean; readonly wasNamed: boolean },
   mode?: 'voice' | 'typed',
   brief?: { readonly title: string | null; readonly content: string } | null,
+  priorTurns?: readonly ConversationTurn[],
 ): string {
   let prompt = `${persona.systemPrompt}\n\n${TEAM_CHARTER}`;
 
@@ -132,6 +133,15 @@ function assembleSystemPrompt(
 Do not explain who does what on this team, do not tell the founder which teammate they should be talking to, and do not treat being greeted as a question aimed at the wrong person. Nobody is confused. If they said hello and asked how you are, tell them — then let them bring up what they actually want to discuss, or ask them lightly. The deferral guidance above applies to work, not to conversation.`;
   } else if (register?.wasNamed) {
     prompt += `\n\nThe founder addressed you by name. Answer them directly rather than deferring, even if the topic sits at the edge of your lane — you can bring in a teammate's perspective, but you are the one being spoken to.`;
+  }
+
+  // Prior advisor turns are prefixed with the speaker's name, because the model
+  // sees a flat assistant role and three advisors would otherwise be
+  // indistinguishable in the history. Observed live: Marcus copied the pattern
+  // and opened his reply "Sarah Chen: ... Marcus Webb: ...", narrating the
+  // transcript instead of speaking.
+  if (priorTurns && priorTurns.length > 0) {
+    prompt += `\n\nEarlier turns in this conversation are labelled with who said them — "Sarah Chen: ..." marks Sarah's contribution. That labelling is for your reading only. Write your reply as yourself, speaking directly. Do not prefix it with your own name, do not label it, and never restate a teammate's turn back in that form.`;
   }
 
   if (mode === 'voice') {
@@ -273,6 +283,7 @@ A ${persona.role} should respond when the topic directly touches their domain. S
             })(),
           input.mode,
           input.brief,
+          input.priorTurns,
         ),
         // Headroom above what the voice guidance asks for, so a compliant
         // reply always finishes its sentence. An earlier 220 cut a 173-word

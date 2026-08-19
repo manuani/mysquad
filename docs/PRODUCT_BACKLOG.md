@@ -201,7 +201,18 @@ at points in time, and the differences all matter:
 
 ## 4 — Persist conversations, and let the founder resume one
 
-**Status:** Backlog · **Raised:** 2026-08-19, from live testing
+**Status:** Done, 2026-08-19 · **Raised:** 2026-08-19, from live testing
+
+Both gaps are closed. Prior turns now travel with every request, both sides of
+the conversation are written to `transcript_entries`, and a new voice session
+against the same meeting restores what was said. Verified across two separate
+sessions: the second answered "you're burning forty thousand a month on
+iTrendFast" from stored history alone.
+
+What remains of this item, if it is picked up again: resuming is currently
+"reconnect to the same meeting session", with no founder-facing way to find a
+past meeting and continue it. The open questions below on recaps, the
+relationship to the brain, and retention are all still open.
 
 The founder should be able to pick a meeting back up where it was left. Today
 nothing about a voice conversation survives it.
