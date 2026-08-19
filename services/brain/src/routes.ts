@@ -89,7 +89,13 @@ export function buildBrainRouter(postgres: PostgresClient): Router {
     try {
       const tenantContext = tenantContextFromRequest(req);
       const domain = parseDomainParam(req);
-      const items = await listBrainContentByDomain(tenantContext, postgres, domain);
+      const profileId = req.query['companyProfileId'];
+      const items = await listBrainContentByDomain(
+        tenantContext,
+        postgres,
+        domain,
+        typeof profileId === 'string' && profileId ? profileId : undefined,
+      );
       res.status(200).json({ items });
     } catch (err) {
       handleError(err, res);
@@ -105,6 +111,8 @@ export function buildBrainRouter(postgres: PostgresClient): Router {
         content?: unknown;
         contentEn?: unknown;
         source?: unknown;
+        /** Which of the founder's companies this fact is about. */
+        companyProfileId?: unknown;
       };
       if (typeof body.language !== 'string') {
         throw new ValidationError('language is required');
@@ -119,6 +127,12 @@ export function buildBrainRouter(postgres: PostgresClient): Router {
         content: body.content,
         contentEn: typeof body.contentEn === 'string' ? body.contentEn : null,
         source,
+        // Which of the founder's companies this fact is about. Omitting it
+        // stores against the account's default company, which is what a
+        // single-company account wants.
+        ...(typeof body.companyProfileId === 'string'
+          ? { companyProfileId: body.companyProfileId }
+          : {}),
       });
       res.status(201).json(item);
     } catch (err) {
@@ -133,7 +147,13 @@ export function buildBrainRouter(postgres: PostgresClient): Router {
       if (typeof q !== 'string') {
         throw new ValidationError('q query parameter is required');
       }
-      const items = await searchBrainContent(tenantContext, postgres, q);
+      const profileId = req.query['companyProfileId'];
+      const items = await searchBrainContent(
+        tenantContext,
+        postgres,
+        q,
+        typeof profileId === 'string' && profileId ? profileId : undefined,
+      );
       res.status(200).json({ items });
     } catch (err) {
       handleError(err, res);

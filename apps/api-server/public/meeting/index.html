@@ -284,6 +284,18 @@
         margin-bottom: 8px;
       }
       .join-card button:hover { background: #6b46c1; }
+      #profile-picker {
+        width: 100%;
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #e2e8f0;
+        font-size: 13px;
+        margin-bottom: 12px;
+        outline: none;
+      }
+
       #meeting-list {
         max-height: 190px;
         overflow-y: auto;
@@ -326,6 +338,9 @@
         <p id="join-error"></p>
         <input type="password" id="token-input" placeholder="Session token (auto-filled from demo)" />
         <input type="text" id="display-name-input" placeholder="Your display name" />
+
+        <div class="divider">— which company —</div>
+        <select id="profile-picker" onchange="onProfileChange()"></select>
         <div class="divider">— join existing room or create new —</div>
         <input type="text" id="room-input" placeholder="Room name (leave blank to create new)" />
 
@@ -1135,6 +1150,64 @@
         input.value = '';
       }
 
+      // ── Company profiles ───────────────────────────────────────────────────
+      /** The company the founder is meeting about. Scopes meetings and brain. */
+      let companyProfileId = null;
+
+      /**
+       * Loads the founder's companies and selects the default.
+       *
+       * A tenant used to be a company, so this was implicit. With more than one,
+       * the advisors have to be told which business they are advising — reading
+       * the wrong brain produces confident advice about the wrong company.
+       */
+      async function loadProfiles() {
+        const sel = document.getElementById('profile-picker');
+        if (!sel || !sessionToken) return;
+
+        try {
+          const res = await fetch(`${API}/v1/identity-and-tenancy/company-profiles`, {
+            headers: authHeaders(),
+          });
+          if (!res.ok) throw new Error(`profiles failed (${res.status})`);
+          const { profiles } = await res.json();
+
+          if (!profiles.length) {
+            sel.innerHTML = '<option value="">No company profiles</option>';
+            return;
+          }
+
+          const saved = localStorage.getItem('voai_company_profile');
+          const chosen =
+            profiles.find((p) => p.id === saved) ??
+            profiles.find((p) => p.isDefault) ??
+            profiles[0];
+          companyProfileId = chosen.id;
+
+          sel.innerHTML = profiles
+            .map((p) => {
+              const label = p.industry ? `${p.name} — ${p.industry}` : p.name;
+              return `<option value="${p.id}"${p.id === chosen.id ? ' selected' : ''}>${esc(label)}</option>`;
+            })
+            .join('');
+        } catch (err) {
+          console.warn('could not load company profiles', err);
+          sel.innerHTML = '<option value="">Could not load companies</option>';
+        }
+      }
+
+      /** Switching company changes which meetings are listed, and which brain is read. */
+      function onProfileChange() {
+        const sel = document.getElementById('profile-picker');
+        companyProfileId = sel?.value || null;
+        if (companyProfileId) localStorage.setItem('voai_company_profile', companyProfileId);
+        // Past meetings belong to a company, so the list is no longer valid.
+        resumeMeetingId = null;
+        const banner = document.getElementById('resume-banner');
+        if (banner) banner.textContent = '';
+        void loadMeetings(document.getElementById('meeting-search')?.value ?? '');
+      }
+
       // ── Past meetings ──────────────────────────────────────────────────────
       /** Meeting the founder chose to continue, if any. */
       let resumeMeetingId = null;
@@ -1151,7 +1224,10 @@
         if (!list || !sessionToken) return;
 
         try {
-          const url = `${API}/v1/meeting/sessions${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ''}`;
+          const params = new URLSearchParams();
+          if (query.trim()) params.set('q', query.trim());
+          if (companyProfileId) params.set('companyProfileId', companyProfileId);
+          const url = `${API}/v1/meeting/sessions${params.toString() ? `?${params}` : ''}`;
           const res = await fetch(url, { headers: authHeaders() });
           if (!res.ok) throw new Error(`list failed (${res.status})`);
           const { meetings } = await res.json();
@@ -1328,7 +1404,12 @@
         let session;
         try {
           const sessionRes = await fetch(`${API}/v1/meeting/sessions`, {
-            method: 'POST', headers: authHeaders(), body: JSON.stringify({ mode: 'voice' }),
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+              mode: 'voice',
+              ...(companyProfileId ? { companyProfileId } : {}),
+            }),
           });
           if (!sessionRes.ok) throw new Error(`session create failed (${sessionRes.status})`);
           session = await sessionRes.json();
@@ -1401,7 +1482,7 @@
             sessionToken = s.sessionToken;
             tenantId = s.tenantId;
             userId = s.userId;
-            void loadMeetings();
+            void loadProfiles().then(() => loadMeetings());
           }
         } catch {}
       }

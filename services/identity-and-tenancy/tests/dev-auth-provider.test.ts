@@ -38,6 +38,8 @@ function createFakePostgres(): PostgresClient {
     revoked_at: string | null;
   }[] = [];
   const emailTenantIndex: { email: string; tenant_id: string }[] = [];
+  // Signup now also creates the account's first company profile.
+  const companyProfiles: { tenant_id: string; name: string }[] = [];
   const authSessionTenantIndex: { token_hash: string; tenant_id: string; expires_at: string }[] =
     [];
   let counter = 0;
@@ -156,6 +158,13 @@ function createFakePostgres(): PostgresClient {
         if (sql.startsWith('select tenant_id from auth_session_tenant_index')) {
           const row = authSessionTenantIndex.find((r) => r.token_hash === params[0]);
           return { rows: (row ? [{ tenant_id: row.tenant_id }] : []) as T[] };
+        }
+
+        // Signup now also creates the account's first company profile, so a
+        // founder never lands on an empty picker with nothing to choose.
+        if (sql.startsWith('insert into company_profiles')) {
+          companyProfiles.push({ tenant_id: String(params[0]), name: String(params[1]) });
+          return { rows: [] as T[] };
         }
 
         throw new Error(`fake postgres: unhandled query: ${text}`);

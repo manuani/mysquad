@@ -104,6 +104,17 @@ export async function createTenantWithFounder(
     if (!userRow) {
       throw new Error('failed to create founder user');
     }
+
+    // Every account starts with one company, named after itself. A founder who
+    // signed in to an account with no profile would land on an empty picker
+    // with nothing to choose, and nothing for their brain or meetings to attach
+    // to. They can rename it, add more, and change which one opens by default.
+    await client.query(
+      `insert into company_profiles (tenant_id, name, is_default, created_by)
+       values ($1, $2, true, $3)`,
+      [tenant.id, tenantName, userRow.id],
+    );
+
     return toUser(userRow);
   });
 

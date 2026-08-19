@@ -35,6 +35,13 @@ export interface ListMeetingsInput {
   /** Free text matched against the agenda and everything said. */
   readonly query?: string;
   readonly limit?: number;
+  /**
+   * Restricts the list to one of the founder's companies. Omitting it lists
+   * every meeting in the account, which is right for an account-level view and
+   * wrong for the meeting picker — a founder choosing which conversation to
+   * resume is thinking about one business at a time.
+   */
+  readonly companyProfileId?: string;
 }
 
 const DEFAULT_LIMIT = 25;
@@ -97,6 +104,7 @@ export async function listMeetings(
          EXISTS (SELECT 1 FROM transcript_entries te WHERE te.session_id = s.id)
          OR b.session_id IS NOT NULL
        )
+       AND ($4::uuid IS NULL OR s.company_profile_id = $4)
        AND (
          $3::text IS NULL
          OR b.title ILIKE '%' || $3 || '%'
@@ -108,7 +116,12 @@ export async function listMeetings(
        )
        ORDER BY COALESCE(s.ended_at, s.created_at) DESC
        LIMIT $1`,
-      [limit, OPENING_LINE_CHARS, query && query.length > 0 ? query : null],
+      [
+        limit,
+        OPENING_LINE_CHARS,
+        query && query.length > 0 ? query : null,
+        input.companyProfileId ?? null,
+      ],
     );
 
     return result.rows.map((row) => ({

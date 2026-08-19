@@ -68,6 +68,7 @@ function toSession(row: SessionSqlRow): SessionRow {
   return {
     id: row.id,
     tenantId: row.tenant_id,
+    companyProfileId: (row as { company_profile_id?: string | null }).company_profile_id ?? null,
     startedBy: row.started_by,
     status: row.status,
     mode: row.mode as SessionRow['mode'],

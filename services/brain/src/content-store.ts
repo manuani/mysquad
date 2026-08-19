@@ -101,6 +101,11 @@ const CONTENT_COLUMNS =
   'id, tenant_id, domain, language, content, content_en, source, deleted_at, ingested_at, updated_at';
 
 export interface CreateBrainContentInput {
+  /**
+   * Which of the founder's companies this fact is about. Defaults to the
+   * account's default company, so a single-company account behaves as before.
+   */
+  readonly companyProfileId?: string;
   readonly domain: BrainDomain;
   readonly language: string;
   readonly content: string;
@@ -126,8 +131,13 @@ export async function createBrainContentItem(
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
     const insertResult = await client.query<ContentSqlRow>(
-      `insert into brain_content_canonical (tenant_id, domain, language, content, content_en, source)
-       values ($1, $2, $3, $4, $5, $6)
+      `insert into brain_content_canonical
+         (tenant_id, company_profile_id, domain, language, content, content_en, source)
+       values (
+         $1,
+         COALESCE($7::uuid, (SELECT id FROM company_profiles WHERE is_default LIMIT 1)),
+         $2, $3, $4, $5, $6
+       )
        returning ${CONTENT_COLUMNS}`,
       [
         tenantContext.tenantId,
@@ -136,6 +146,7 @@ export async function createBrainContentItem(
         input.content,
         input.contentEn ?? null,
         input.source,
+        input.companyProfileId ?? null,
       ],
     );
     const row = insertResult.rows[0];
@@ -161,13 +172,21 @@ export async function listBrainContentByDomain(
   tenantContext: TenantContext,
   postgres: PostgresClient,
   domain: BrainDomain,
+  /**
+   * Restricts the read to one of the founder's companies. Omitting it returns
+   * everything in the tenant, which is what an account-level view wants — but
+   * an advisor in a meeting must always pass it, or they will reason about the
+   * wrong company's numbers.
+   */
+  companyProfileId?: string,
 ): Promise<BrainContentItem[]> {
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
     const result = await client.query<ContentSqlRow>(
       `select ${CONTENT_COLUMNS} from brain_content_canonical
        where domain = $1 and deleted_at is null
+         and ($2::uuid is null or company_profile_id = $2)
        order by updated_at desc`,
-      [domain],
+      [domain, companyProfileId ?? null],
     );
     return result.rows.map(toItem);
   });
@@ -330,6 +349,8 @@ export async function searchBrainContent(
   tenantContext: TenantContext,
   postgres: PostgresClient,
   query: string,
+  /** See `listBrainContentByDomain` — advisors in a meeting must scope this. */
+  companyProfileId?: string,
 ): Promise<BrainContentItem[]> {
   if (query.trim().length === 0) {
     throw new ValidationError('q is required');
@@ -339,8 +360,9 @@ export async function searchBrainContent(
     const result = await client.query<ContentSqlRow>(
       `select ${CONTENT_COLUMNS} from brain_content_canonical
        where deleted_at is null and (content ilike $1 or content_en ilike $1)
+         and ($2::uuid is null or company_profile_id = $2)
        order by updated_at desc`,
-      [likePattern],
+      [likePattern, companyProfileId ?? null],
     );
     return result.rows.map(toItem);
   });

@@ -22,6 +22,8 @@ export type SessionMode = 'typed' | 'voice' | 'mixed';
 export interface SessionRow {
   readonly id: string;
   readonly tenantId: string;
+  /** The company this meeting is about. Null only for rows predating profiles. */
+  readonly companyProfileId: string | null;
   readonly startedBy: string;
   readonly status: SessionStatus;
   readonly mode: SessionMode;
@@ -32,6 +34,7 @@ export interface SessionRow {
 interface SessionSqlRow {
   id: string;
   tenant_id: string;
+  company_profile_id: string | null;
   started_by: string;
   status: SessionStatus;
   mode: SessionMode;
@@ -43,6 +46,7 @@ function toSession(row: SessionSqlRow): SessionRow {
   return {
     id: row.id,
     tenantId: row.tenant_id,
+    companyProfileId: row.company_profile_id ?? null,
     startedBy: row.started_by,
     status: row.status,
     mode: row.mode,
@@ -70,6 +74,12 @@ function assertValidSessionTransition(from: SessionStatus, to: SessionStatus): v
 }
 
 export interface StartSessionInput {
+  /**
+   * Which of the founder's companies this meeting concerns. A founder running
+   * two businesses needs their advisors reasoning about the right one — mixing
+   * them produces confident advice about the wrong company's runway.
+   */
+  readonly companyProfileId?: string;
   readonly mode?: SessionMode;
 }
 
@@ -93,11 +103,18 @@ export async function startSession(
   // session id reached Postgres as the string "undefined".
 
   return postgres.withTenant(tenantContext.tenantId, async (client) => {
+    // Falls back to the account's default company when the caller does not say
+    // which one. A meeting has to belong to a business for the advisors to know
+    // whose runway they are reasoning about.
     const result = await client.query<SessionSqlRow>(
-      `insert into sessions (tenant_id, started_by, status, mode)
-       values ($1, $2, 'started', $3)
+      `insert into sessions (tenant_id, company_profile_id, started_by, status, mode)
+       values (
+         $1,
+         COALESCE($4::uuid, (SELECT id FROM company_profiles WHERE is_default LIMIT 1)),
+         $2, 'started', $3
+       )
        returning *`,
-      [tenantContext.tenantId, tenantContext.userId, mode],
+      [tenantContext.tenantId, tenantContext.userId, mode, input.companyProfileId ?? null],
     );
     const row = result.rows[0];
     if (!row) throw new Error('failed to start session');

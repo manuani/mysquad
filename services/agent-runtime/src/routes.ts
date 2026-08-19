@@ -22,7 +22,7 @@ import { matchExperts } from '@voai/marketplace';
 import { recordMeteringEvent } from '@voai/marketplace-metering';
 import { AgentRuntime } from './agent-runtime.js';
 import { createPlanResolver } from './tenant-plan.js';
-import { getBrief } from '@voai/meeting';
+import { getBrief, getSession } from '@voai/meeting';
 import { fetchBrainContextForMessage } from './brain-context.js';
 import { SARAH_CFO_PERSONA } from './personas/sarah-cfo.js';
 import { PRIYA_CMO_PERSONA } from './personas/priya-cmo.js';
@@ -92,15 +92,28 @@ export function buildAgentRuntimeRouter(
   router.post('/contributions', async (req: Request, res: Response) => {
     try {
       const tenantContext = tenantContextFromRequest(req);
-      const body = req.body as { message?: unknown };
+      const body = req.body as { message?: unknown; meetingSessionId?: unknown };
       if (typeof body.message !== 'string' || body.message.trim().length === 0) {
         throw new ValidationError('message is required');
       }
+
+      // Which company this meeting is about. Read from the meeting session so
+      // the advisors' brain, and everything they recall, belongs to the right
+      // business — a founder running two would otherwise get one company's
+      // numbers quoted into the other's meeting.
+      const meetingSessionIdForScope =
+        typeof body.meetingSessionId === 'string' ? body.meetingSessionId : null;
+      const companyProfileId = meetingSessionIdForScope
+        ? await getSession(tenantContext, postgres, meetingSessionIdForScope)
+            .then((s) => s?.companyProfileId ?? undefined)
+            .catch(() => undefined)
+        : undefined;
 
       const brainContext = await fetchBrainContextForMessage(
         tenantContext,
         postgres,
         body.message,
+        companyProfileId,
       ).catch((err: unknown) => {
         log.warn('brain context fetch failed, continuing without it', { err: String(err) });
         return [];
@@ -152,10 +165,23 @@ export function buildAgentRuntimeRouter(
       }
       const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
 
+      // Which company this meeting is about. Read from the meeting session so
+      // the advisors' brain, and everything they recall, belongs to the right
+      // business — a founder running two would otherwise get one company's
+      // numbers quoted into the other's meeting.
+      const meetingSessionIdForScope =
+        typeof body.meetingSessionId === 'string' ? body.meetingSessionId : null;
+      const companyProfileId = meetingSessionIdForScope
+        ? await getSession(tenantContext, postgres, meetingSessionIdForScope)
+            .then((s) => s?.companyProfileId ?? undefined)
+            .catch(() => undefined)
+        : undefined;
+
       const brainContext = await fetchBrainContextForMessage(
         tenantContext,
         postgres,
         body.message,
+        companyProfileId,
       ).catch((err: unknown) => {
         log.warn('brain context fetch failed, continuing without it', { err: String(err) });
         return [];

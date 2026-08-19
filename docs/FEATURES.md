@@ -15,6 +15,25 @@
 | 1.3 | Sign out — invalidate session | `POST /v1/identity-and-tenancy/signout` |
 | 1.4 | View own profile | `GET /v1/identity-and-tenancy/me` |
 | 1.5 | Delete account (GDPR erasure) | `DELETE /v1/identity-and-tenancy/me?confirm=true` |
+| 1.6 | List the founder's companies | `GET /v1/identity-and-tenancy/company-profiles` |
+| 1.7 | Add a company | `POST /v1/identity-and-tenancy/company-profiles` |
+| 1.8 | Rename a company, or make it the default | `PATCH /v1/identity-and-tenancy/company-profiles/:id` |
+
+**Company profiles.** A tenant is the *account* — billing, plan, users,
+entitlements. A company profile is a business inside it, and a founder may run
+several. Signup creates one; exactly one is the default, enforced by a partial
+unique index rather than application code.
+
+Everything describing a business is scoped to the profile: brain content,
+meetings, and the decision ledger. Pass `companyProfileId` when creating a
+meeting or storing a brain fact, and `?companyProfileId=` when listing meetings
+or reading the brain. Advisors resolve it from the meeting, so they read the
+right company's knowledge — asked "how much is in the bank?" in two meetings on
+one account, they answer "$240,000, burning $40,000 a month" for one company and
+"2 crore rupees in reserves" for the other.
+
+Not scoped to a profile: users, auth sessions, metering, marketplace bookings,
+notification preferences. Those belong to the person or the account.
 
 **Headers required for authenticated calls:** `x-tenant-id`, `x-user-id`, `x-user-type: founder`, `x-session-id`
 

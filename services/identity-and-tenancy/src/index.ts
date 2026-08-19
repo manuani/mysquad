@@ -72,3 +72,13 @@ export const identityAndTenancyModule: ModuleDefinition = {
 };
 
 export default identityAndTenancyModule;
+
+export {
+  listProfiles,
+  getProfile,
+  getDefaultProfile,
+  createProfile,
+  updateProfile,
+  assertProfileBelongsToTenant,
+} from './company-profiles.js';
+export type { CompanyProfile } from './company-profiles.js';

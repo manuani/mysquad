@@ -12,6 +12,11 @@ import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { buildTenantContext } from '@voai/auth-context';
 import { isPlatformError, UnauthenticatedError, ValidationError } from '@voai/errors';
+import {
+  createProfile,
+  listProfiles,
+  updateProfile,
+} from './company-profiles.js';
 import type { Logger } from '@voai/types';
 import type { PostgresClient } from '@voai/db';
 import type { AuthProvider, SignInMethod } from './auth-provider.js';
@@ -71,6 +76,21 @@ function parseSignUpInRequest(req: Request): { email: string; method: SignInMeth
     throw new ValidationError(`method must be one of ${SIGN_IN_METHODS.join(', ')}`);
   }
   return { email, method };
+}
+
+/**
+ * Company-profile routes authenticate the way every other module does, from the
+ * x-* headers a caller sets after resolving their session token. The auth
+ * endpoints above take a bearer token instead, because exchanging that token
+ * for a context is what they exist to do.
+ */
+function tenantContextFromRequest(req: Request) {
+  return buildTenantContext({
+    tenantId: req.header('x-tenant-id'),
+    userId: req.header('x-user-id'),
+    userType: req.header('x-user-type'),
+    sessionId: req.header('x-session-id'),
+  });
 }
 
 export function buildIdentityAndTenancyRouter(
@@ -165,6 +185,56 @@ export function buildIdentityAndTenancyRouter(
       await deleteTenantData(tenantContext, postgres);
       log.info('tenant data deleted (GDPR erasure)', { tenantId: tenantContext.tenantId });
       res.status(204).send();
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  // ── Company profiles ─────────────────────────────────────────────────────
+  // The businesses inside this account. A founder picks one on sign-in, and
+  // meetings, brain content and decisions are scoped to it.
+  router.get('/company-profiles', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromRequest(req);
+      const profiles = await listProfiles(tenantContext, postgres);
+      res.status(200).json({ profiles });
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.post('/company-profiles', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromRequest(req);
+      const body = req.body as Record<string, unknown>;
+      if (typeof body.name !== 'string') throw new ValidationError('name is required');
+
+      const profile = await createProfile(tenantContext, postgres, {
+        name: body.name,
+        ...(typeof body.description === 'string' ? { description: body.description } : {}),
+        ...(typeof body.industry === 'string' ? { industry: body.industry } : {}),
+        ...(typeof body.isDefault === 'boolean' ? { isDefault: body.isDefault } : {}),
+      });
+      res.status(201).json(profile);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  router.patch('/company-profiles/:id', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromRequest(req);
+      const id = req.params['id'];
+      if (!id) throw new ValidationError('id path parameter is required');
+      const body = req.body as Record<string, unknown>;
+
+      const profile = await updateProfile(tenantContext, postgres, id, {
+        ...(typeof body.name === 'string' ? { name: body.name } : {}),
+        ...(typeof body.description === 'string' ? { description: body.description } : {}),
+        ...(typeof body.industry === 'string' ? { industry: body.industry } : {}),
+        ...(typeof body.isDefault === 'boolean' ? { isDefault: body.isDefault } : {}),
+      });
+      res.status(200).json(profile);
     } catch (err) {
       handleError(err, res, log);
     }

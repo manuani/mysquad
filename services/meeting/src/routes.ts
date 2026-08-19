@@ -74,6 +74,9 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
 
       const session = await startSession(tenantContext, postgres, {
         mode: isOneOf(SESSION_MODES, body.mode) ? body.mode : undefined,
+        ...(typeof body.companyProfileId === 'string'
+          ? { companyProfileId: body.companyProfileId }
+          : {}),
       });
       res.status(201).json(session);
     } catch (err) {
@@ -149,8 +152,10 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
       const tenantContext = tenantContextFromHeaders(req);
       const q = req.query['q'];
       const limitRaw = req.query['limit'];
+      const profileId = req.query['companyProfileId'];
       const meetings = await listMeetings(tenantContext, postgres, {
         ...(typeof q === 'string' && q.trim() ? { query: q } : {}),
+        ...(typeof profileId === 'string' && profileId ? { companyProfileId: profileId } : {}),
         ...(typeof limitRaw === 'string' && Number.isFinite(Number(limitRaw))
           ? { limit: Number(limitRaw) }
           : {}),

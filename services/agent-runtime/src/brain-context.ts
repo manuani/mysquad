@@ -114,13 +114,21 @@ export async function fetchBrainContextForMessage(
   tenantContext: TenantContext,
   postgres: PostgresClient,
   message: string,
+  /**
+   * The company this meeting is about. A founder running two businesses needs
+   * their advisors reading the right brain — without this the roster would
+   * quote one company's runway into the other's meeting, confidently.
+   */
+  companyProfileId?: string,
 ): Promise<string[]> {
   const keywords = extractKeywords(message);
 
   if (keywords.length > 0) {
     const matches = (
       await Promise.all(
-        keywords.map((kw) => searchBrainContent(tenantContext, postgres, kw).catch(() => [])),
+        keywords.map((kw) =>
+          searchBrainContent(tenantContext, postgres, kw, companyProfileId).catch(() => []),
+        ),
       )
     ).flat();
 
@@ -133,7 +141,9 @@ export async function fetchBrainContextForMessage(
 
   const recent = (
     await Promise.all(
-      BRAIN_DOMAINS.map((domain) => listBrainContentByDomain(tenantContext, postgres, domain)),
+      BRAIN_DOMAINS.map((domain) =>
+        listBrainContentByDomain(tenantContext, postgres, domain, companyProfileId),
+      ),
     )
   ).flat();
   recent.sort(byRecencyDesc);
