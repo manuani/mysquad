@@ -81,6 +81,64 @@ trusting the prompt to hold, and to enforce what can be enforced structurally
 
 ---
 
+## 2 — Accept PDF, Word and PowerPoint as meeting briefs
+
+**Status:** Backlog · **Raised:** 2026-08-17, from live testing
+
+The agenda upload takes `.txt` and `.md` only. Founders' actual material is a
+pitch deck, a board doc, or a one-pager — `.pdf`, `.docx`, `.pptx`. Anything
+else has to be pasted by hand, which is friction in exactly the moment the
+feature exists to remove.
+
+### Why it was limited at first
+
+Reading a text file in the browser is `await file.text()`. Every other format
+needs a parser, and a bad extraction is worse than no file: the advisors treat
+the brief as fact and will reason confidently from a garbled agenda. That was a
+deliberate hold, not an oversight — but it is the wrong long-term answer.
+
+### What is already known
+
+- Storage is settled. `meeting_briefs.content` holds extracted text, capped at
+  15,000 characters (`MAX_BRIEF_CHARS`), and `source_filename` is already
+  recorded — so keeping the original alongside the text needs no migration.
+- The 15,000-character cap will bite. A short deck extracts to well under it; a
+  40-page board pack does not. The brief is injected into every persona's prompt
+  on every turn, so the cap is about cost and latency per turn, not storage.
+  Long documents need either summarisation on upload or retrieval per turn
+  rather than wholesale injection.
+- Decks are the awkward case, not PDFs. `.pptx` text extraction yields
+  disconnected fragments — a title, three bullets, a number with no label — and
+  the argument usually lives in the layout and the speaker notes. Extracting
+  notes as well as slide text is likely the difference between useful and
+  noise.
+- The parse must be visible. Whatever is extracted should be shown back to the
+  founder before the meeting starts, so a mangled result is caught by the person
+  who knows what the document said.
+
+### Where to do the work
+
+Browser-side keeps the file off the server and needs no new infrastructure, but
+means shipping a parser per format to the client and accepting whatever the
+browser manages. Server-side gives better extraction and one place to fix it,
+but means uploading the document — which makes the object store (already wired,
+MinIO locally) the natural home, and brings retention and tenant-isolation
+questions with it.
+
+Worth checking whether the existing brain ingestion path already solves some of
+this before adding a second document pipeline beside it.
+
+### Open questions
+
+- Store the original file, or only the extracted text? Storing it allows
+  re-extraction as parsers improve, and makes the brief auditable.
+- What happens when extraction fails or produces something obviously wrong —
+  refuse, or accept with a warning and let the founder correct it?
+- Does a long document get summarised on upload, or retrieved against per turn?
+  The second is more faithful and a larger build.
+
+---
+
 ## Known loose ends
 
 Smaller items surfaced while building, recorded so they are not lost. None are

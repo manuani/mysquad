@@ -69,8 +69,9 @@ With one: *"You've got 240,000 dollars and you're burning 40,000 a month, so
 you're sitting at roughly six months."*
 
 In the voice UI it is the agenda box on the join screen; `.txt` and `.md`
-attachments are read in the browser, anything else is pasted. Pass
-`meetingSessionId` on a roster call to have the advisors read it.
+attachments are read in the browser, anything else is pasted. PDF, Word and
+PowerPoint are wanted and not yet supported — see `docs/PRODUCT_BACKLOG.md` §2.
+Pass `meetingSessionId` on a roster call to have the advisors read it.
 
 ---
 
