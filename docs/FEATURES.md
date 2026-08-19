@@ -57,6 +57,20 @@
 | 3.8 | Upload an agenda or brief for a meeting | `PUT /v1/meeting/sessions/:id/brief` |
 | 3.9 | Read the brief | `GET /v1/meeting/sessions/:id/brief` |
 | 3.10 | Remove the brief | `DELETE /v1/meeting/sessions/:id/brief` |
+| 3.11 | List and search past meetings | `GET /v1/meeting/sessions?q=…&limit=…` |
+
+**Resuming a meeting.** `GET /v1/meeting/sessions` returns past meetings newest
+first, each with its agenda title, the founder's opening line, which advisors
+spoke, and how many turns. `?q=` searches the agenda *and everything said*,
+because someone looking for "the pricing conversation" is remembering what was
+discussed rather than what it was called. Meetings with nothing in them are
+excluded — a session is created on join, so abandoned joins would otherwise
+fill the list.
+
+Rejoining with the same `meetingSessionId` restores the conversation: the
+advisors read the stored transcript and pick up where they left off, each
+recalling their own position. In the voice UI it is the "continue a past
+meeting" list on the join screen.
 
 **Meeting briefs.** An agenda the founder supplies before the meeting so
 advisors arrive knowing the subject. Body: `{ content, title?, sourceFilename? }`,

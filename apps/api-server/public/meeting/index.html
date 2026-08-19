@@ -284,6 +284,27 @@
         margin-bottom: 8px;
       }
       .join-card button:hover { background: #6b46c1; }
+      #meeting-list {
+        max-height: 190px;
+        overflow-y: auto;
+        margin-bottom: 12px;
+      }
+      .meeting-row {
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        padding: 9px 12px;
+        margin-bottom: 6px;
+        cursor: pointer;
+        transition: border-color 0.15s;
+      }
+      .meeting-row:hover { border-color: #4299e1; }
+      .meeting-row.selected { border-color: #48bb78; background: #12211a; }
+      .meeting-row .m-title { font-size: 13px; color: #e2e8f0; font-weight: 600; }
+      .meeting-row .m-meta { font-size: 11px; color: #718096; margin-top: 3px; }
+      #meeting-list .empty { font-size: 12px; color: #718096; padding: 6px 2px; }
+      #resume-banner { font-size: 12px; color: #48bb78; margin-bottom: 12px; }
+
       .join-card button.secondary {
         background: #2d3748;
         font-weight: 400;
@@ -308,7 +329,13 @@
         <div class="divider">— join existing room or create new —</div>
         <input type="text" id="room-input" placeholder="Room name (leave blank to create new)" />
 
-        <div class="divider">— agenda or brief (optional) —</div>
+        <div class="divider">— continue a past meeting —</div>
+        <input type="text" id="meeting-search" placeholder="Search past meetings…"
+          oninput="loadMeetings(this.value)" />
+        <div id="meeting-list"></div>
+        <p id="resume-banner"></p>
+
+        <div class="divider">— or start fresh: agenda / brief (optional) —</div>
         <p style="font-size:12px;color:#718096;margin-bottom:10px">
           Paste or attach what this meeting is about. Your advisors read it before
           joining, so they arrive with a view instead of asking what you're building.
@@ -1108,6 +1135,67 @@
         input.value = '';
       }
 
+      // ── Past meetings ──────────────────────────────────────────────────────
+      /** Meeting the founder chose to continue, if any. */
+      let resumeMeetingId = null;
+
+      /**
+       * Lists past meetings, filtered by whatever the founder typed.
+       *
+       * Search covers the agenda and everything said, because someone looking
+       * for "the pricing conversation" is remembering what was discussed rather
+       * than what the meeting was called.
+       */
+      async function loadMeetings(query = '') {
+        const list = document.getElementById('meeting-list');
+        if (!list || !sessionToken) return;
+
+        try {
+          const url = `${API}/v1/meeting/sessions${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ''}`;
+          const res = await fetch(url, { headers: authHeaders() });
+          if (!res.ok) throw new Error(`list failed (${res.status})`);
+          const { meetings } = await res.json();
+
+          if (!meetings.length) {
+            list.innerHTML = `<div class="empty">${query.trim() ? 'No meetings match that.' : 'No past meetings yet.'}</div>`;
+            return;
+          }
+
+          list.innerHTML = meetings
+            .map((m) => {
+              const when = new Date(m.endedAt ?? m.createdAt).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              });
+              // Titles are rarely supplied, so the founder's opening line is
+              // usually the more recognisable label.
+              const label = m.title || m.openingLine || 'Untitled meeting';
+              const who = m.advisors.length ? m.advisors.join(', ') : 'no advisors spoke';
+              return `<div class="meeting-row" data-id="${m.id}" onclick="selectMeeting('${m.id}')">
+                <div class="m-title">${esc(label)}</div>
+                <div class="m-meta">${when} · ${m.turnCount} turns · ${esc(who)}</div>
+              </div>`;
+            })
+            .join('');
+        } catch (err) {
+          console.warn('could not load past meetings', err);
+          list.innerHTML = '<div class="empty">Could not load past meetings.</div>';
+        }
+      }
+
+      /** Marks a meeting to continue. Clicking it again starts fresh instead. */
+      function selectMeeting(id) {
+        const banner = document.getElementById('resume-banner');
+        resumeMeetingId = resumeMeetingId === id ? null : id;
+
+        document.querySelectorAll('.meeting-row').forEach((row) => {
+          row.classList.toggle('selected', row.dataset.id === resumeMeetingId);
+        });
+
+        banner.textContent = resumeMeetingId
+          ? 'Continuing this meeting — your advisors will pick up where you left off.'
+          : '';
+      }
+
       /** Lists the available microphones so the founder can pick the right one. */
       function populateMicPicker(devices) {
         const sel = document.getElementById('mic-picker');
@@ -1232,6 +1320,11 @@
         // conversation is not stored and cannot be resumed. It used to be
         // created only when a brief was uploaded, which meant most meetings
         // vanished when they ended.
+        // Continuing a meeting reuses its session, which is what carries the
+        // transcript the advisors restore from. Creating a new one here would
+        // start them cold while appearing to resume.
+        if (resumeMeetingId) return resumeMeetingId;
+
         let session;
         try {
           const sessionRes = await fetch(`${API}/v1/meeting/sessions`, {
@@ -1300,6 +1393,16 @@
             if (s.sessionToken) document.getElementById('token-input').value = s.sessionToken;
           }
           if (s.email) document.getElementById('display-name-input').value = s.email.split('@')[0];
+
+          // Past meetings need the auth context the token resolves to, which
+          // join does not establish until the founder clicks. Resolve it here
+          // so the list is there when they arrive.
+          if (!expired && s.sessionToken && s.tenantId && s.userId) {
+            sessionToken = s.sessionToken;
+            tenantId = s.tenantId;
+            userId = s.userId;
+            void loadMeetings();
+          }
         } catch {}
       }
     </script>

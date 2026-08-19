@@ -70,3 +70,6 @@ export const meetingModule: ModuleDefinition = {
 };
 
 export default meetingModule;
+
+export { listMeetings } from './session-list.js';
+export type { MeetingSummary } from './session-list.js';

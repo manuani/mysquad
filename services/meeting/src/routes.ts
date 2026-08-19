@@ -20,6 +20,7 @@ import { isPlatformError, ValidationError } from '@voai/errors';
 import { startSession, getSession, endSession, type SessionMode } from './sessions.js';
 import { appendTranscriptEntry, getTranscript, type SpeakerType } from './transcript.js';
 import { deleteBrief, getBrief, saveBrief } from './brief.js';
+import { listMeetings } from './session-list.js';
 import type { SseManager } from './sse.js';
 import { AccessToken } from 'livekit-server-sdk';
 
@@ -136,6 +137,25 @@ export function buildMeetingRouter(postgres: PostgresClient, log: Logger, sse: S
           : {}),
       });
       res.status(200).json(brief);
+    } catch (err) {
+      handleError(err, res, log);
+    }
+  });
+
+  // Browse and search past meetings. Registered before '/sessions/:id' so
+  // Express does not treat the collection path as an id.
+  router.get('/sessions', async (req: Request, res: Response) => {
+    try {
+      const tenantContext = tenantContextFromHeaders(req);
+      const q = req.query['q'];
+      const limitRaw = req.query['limit'];
+      const meetings = await listMeetings(tenantContext, postgres, {
+        ...(typeof q === 'string' && q.trim() ? { query: q } : {}),
+        ...(typeof limitRaw === 'string' && Number.isFinite(Number(limitRaw))
+          ? { limit: Number(limitRaw) }
+          : {}),
+      });
+      res.status(200).json({ meetings });
     } catch (err) {
       handleError(err, res, log);
     }
