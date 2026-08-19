@@ -95,8 +95,9 @@ shipped to the browser. Body is `{ filename, fileBase64 }`, or `{ text, title }`
 to share a pasted link or figure. PowerPoint pulls speaker notes alongside slide
 text, because a deck's argument usually lives in the notes.
 
-Distinct from the agenda: several per meeting, and each records where in the
-conversation it arrived. Anything shared partway through is presented to the
+Distinct from the agenda: several per meeting — the join screen takes multiple
+files at once and lists them so any can be removed before joining — and each
+records where in the conversation it arrived. Anything shared partway through is presented to the
 advisors as new information they have just read, so their earlier answers do not
 read as negligent. Extraction that yields nothing — a scanned PDF is images of
 text — is refused rather than silently handing the team an empty brief.
