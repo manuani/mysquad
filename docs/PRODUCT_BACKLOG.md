@@ -199,6 +199,71 @@ at points in time, and the differences all matter:
 
 ---
 
+## 4 — Persist conversations, and let the founder resume one
+
+**Status:** Backlog · **Raised:** 2026-08-19, from live testing
+
+The founder should be able to pick a meeting back up where it was left. Today
+nothing about a voice conversation survives it.
+
+### Two gaps, and the smaller-sounding one is worse
+
+**Within a single meeting, the advisors have no memory of it.** Verified in the
+code rather than inferred: `priorTurns` exists on `AgentContributionInput` and
+is threaded all the way through `agent-runtime`, but neither the roster route
+nor the voice pipeline ever passes it. Every turn is dispatched with the latest
+utterance and the meeting brief, and nothing else. An advisor cannot refer back
+to what was said five minutes ago because it was never sent — which reads to the
+founder as an advisor who was not listening.
+
+**Across meetings, nothing is stored.** The media-coordinator holds
+`transcriptChunks` in process memory (`apps/media-coordinator/src/index.ts`) and
+never writes them anywhere. `transcript_entries` exists and works, but nothing
+in the voice path posts to it: the 20 rows currently in the table came from the
+e2e script, not from a real conversation. Ending a meeting discards it.
+
+The first gap is the one to fix first. It is cheaper, it improves every meeting
+immediately, and resuming a conversation is not worth much if the advisors do
+not follow the one they are in.
+
+### What is already known
+
+- The schema is there. `transcript_entries` carries `session_id`,
+  `sequence_number`, `speaker_type`, `speaker_name`, `content`, under RLS, with
+  `sequence_number` assigned in application code inside the same `withTenant`
+  transaction. `appendTranscriptEntry` in `services/meeting/src/transcript.ts`
+  already does this correctly.
+- The voice path has a meeting session to attach to whenever the founder
+  supplied an agenda — `meetingSessionId` already flows browser → MC → roster
+  call. Meetings without a brief currently have no meeting session at all, so
+  one would need creating up front rather than only when a brief is uploaded.
+- Both sides of the conversation need storing. The founder's utterances arrive
+  via `onTranscriptChunk`; the advisors' replies via `onContributions`. Only
+  final transcripts should be written — interim results are revised as the
+  speaker continues.
+- Cost grows with the conversation. Prior turns cannot simply be inlined
+  wholesale the way the brief is, or a long meeting inflates every subsequent
+  turn. The existing pattern of recent turns plus retrieval over the rest is
+  the likely shape; `checkShouldRespond` already truncates to the last four
+  turns at 120 characters each for its own gate prompt.
+
+### Open questions
+
+- Where does resuming happen — rejoining the same room, or a "continue last
+  meeting" entry point? The room is ephemeral and LiveKit-scoped; the meeting
+  session is the durable thing.
+- Does resuming replay context to the founder as well, or only to the advisors?
+  A one-line recap of where the conversation stopped is probably worth more than
+  a full transcript on screen.
+- How does this relate to the brain? A meeting transcript is raw material;
+  extracted facts belong in the brain and already have a home. Storing every
+  word forever, versus storing the conversation and promoting what matters, is a
+  product decision with a real cost difference.
+- Retention and deletion. GDPR erasure already exists for accounts
+  (`DELETE /v1/identity-and-tenancy/me`); stored conversations must fall under it.
+
+---
+
 ## Known loose ends
 
 Smaller items surfaced while building, recorded so they are not lost. None are

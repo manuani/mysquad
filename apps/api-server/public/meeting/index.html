@@ -113,6 +113,33 @@
       #invite-ai-btn.active { background: #276749; }
       #end-btn { margin-left: auto; }
 
+      #mic-level {
+        width: 90px;
+        height: 6px;
+        background: #0f1117;
+        border-radius: 3px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      #mic-level-bar {
+        height: 100%;
+        width: 0%;
+        background: #4a5568;
+        transition: width 0.06s linear, background 0.2s;
+      }
+      #mic-level-hint { font-size: 11px; color: #f6ad55; }
+      #mic-picker {
+        background: #2d3748;
+        color: #e2e8f0;
+        border: none;
+        border-radius: 8px;
+        padding: 9px 10px;
+        font-size: 12px;
+        max-width: 190px;
+        outline: none;
+      }
+      #mic-picker:disabled { opacity: 0.4; }
+
       #connection-banner {
         display: none;
         background: #742a2a;
@@ -317,6 +344,11 @@
       <div id="controls">
         <button class="ctrl" id="mic-btn" onclick="toggleMic()" disabled>🎙 Mic Off</button>
         <button class="ctrl" id="invite-ai-btn" onclick="inviteAI()" disabled>🤖 Invite AI Team</button>
+        <select id="mic-picker" onchange="switchMic()" title="Microphone" disabled></select>
+        <div id="mic-level" title="Your microphone level">
+          <div id="mic-level-bar"></div>
+        </div>
+        <span id="mic-level-hint"></span>
         <button class="ctrl danger" id="end-btn" onclick="endMeeting()">📴 End Meeting</button>
       </div>
 
@@ -549,19 +581,29 @@
         let rawStream;
         try {
           const devices = await navigator.mediaDevices.enumerateDevices();
-          const audioinputs = devices.filter(d => d.kind === 'audioinput');
-          const rank = (d) => {
-            const l = d.label.toLowerCase();
-            if (l.includes('built-in') || l.includes('internal') || l.includes('macbook')) return 0;
-            if (l.includes('bluetooth') || l.includes('airpod') || l.includes('bt')) return 2;
-            return 1;
-          };
-          const preferred = [...audioinputs].sort((a, b) => rank(a) - rank(b))[0];
+          const audioinputs = devices.filter((d) => d.kind === 'audioinput');
+          populateMicPicker(audioinputs);
+
+          // An explicit choice always wins. This used to rank built-in mics
+          // first and Bluetooth last — a workaround for Web Audio silencing
+          // Bluetooth capture, which no longer applies now that MediaRecorder
+          // does the capturing. The cost of keeping it was that a founder
+          // wearing a headset had their laptop microphone recorded instead of
+          // the one at their mouth, which presents as "it is not recognising
+          // my voice" with everything apparently working.
+          const chosenId = localStorage.getItem('voai_mic_device') || '';
+          const chosen = audioinputs.find((d) => d.deviceId === chosenId);
+          const preferred = chosen ?? audioinputs.find((d) => d.deviceId === 'default') ?? audioinputs[0];
+
+          // AEC/NS/AGC stay off: with LiveKit's WebRTC pipeline active, Chrome's
+          // echo canceller treats the founder's own voice as echo and removes it.
           const constraint = preferred
-            ? { audio: { deviceId: { ideal: preferred.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } }
+            ? { audio: { deviceId: { exact: preferred.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } }
             : { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
-          console.log('STT mic:', preferred?.label ?? 'default');
+
+          console.log('STT mic:', preferred?.label || 'system default');
           rawStream = await navigator.mediaDevices.getUserMedia(constraint);
+          markActiveMic(preferred?.deviceId);
         } catch (e) {
           console.warn('STT getUserMedia failed, falling back to LiveKit track', e);
           if (!micTrack) return;
@@ -663,9 +705,50 @@
         }
         tick();
 
+        // A visible level meter, driven from the same analyser.
+        //
+        // Whether the microphone is actually producing sound has been the
+        // hardest thing to establish in this whole feature: audio reached
+        // Deepgram and came back with nothing, which looks identical from the
+        // browser to a mic that is muted, cancelled, or pointed at the wrong
+        // device. Showing the founder their own level turns three indistinct
+        // failures into one glance.
+        const meterBuf = new Float32Array(analyser.fftSize);
+        let meterRaf = null;
+        let peak = 0;
+
+        function meterTick() {
+          meterRaf = requestAnimationFrame(meterTick);
+          const bar = document.getElementById('mic-level-bar');
+          const hint = document.getElementById('mic-level-hint');
+          if (!bar) return;
+
+          analyser.getFloatTimeDomainData(meterBuf);
+          let sum = 0;
+          for (let i = 0; i < meterBuf.length; i++) sum += meterBuf[i] * meterBuf[i];
+          const rms = Math.sqrt(sum / meterBuf.length);
+          peak = Math.max(peak * 0.98, rms); // decay, so a brief peak stays readable
+
+          // Speech sits around 0.02–0.15 RMS; scale so normal talking fills
+          // most of the bar rather than pinning it.
+          const pct = Math.min(100, Math.round((peak / 0.15) * 100));
+          bar.style.width = `${pct}%`;
+          bar.style.background = pct > 8 ? '#48bb78' : '#4a5568';
+
+          if (hint) {
+            hint.textContent = !micEnabled
+              ? 'Mic is off'
+              : pct > 8
+                ? ''
+                : 'No sound reaching the mic — check your input device';
+          }
+        }
+        meterTick();
+
         return {
           stop() {
             if (raf) cancelAnimationFrame(raf);
+            if (meterRaf) cancelAnimationFrame(meterRaf);
             // The stream belongs to the recorder — stopping its tracks here
             // would end transcription too.
             void ctx.close();
@@ -1023,6 +1106,45 @@
         audioWs.send(JSON.stringify({ type: 'message', text }));
         appendTranscript(displayName, text, true);
         input.value = '';
+      }
+
+      /** Lists the available microphones so the founder can pick the right one. */
+      function populateMicPicker(devices) {
+        const sel = document.getElementById('mic-picker');
+        if (!sel) return;
+        const saved = localStorage.getItem('voai_mic_device') || '';
+        sel.innerHTML = devices
+          .map((d, i) => {
+            const label = d.label || `Microphone ${i + 1}`;
+            const selected = d.deviceId === saved ? ' selected' : '';
+            return `<option value="${d.deviceId}"${selected}>${label}</option>`;
+          })
+          .join('');
+        sel.disabled = devices.length === 0;
+      }
+
+      function markActiveMic(deviceId) {
+        const sel = document.getElementById('mic-picker');
+        if (sel && deviceId) sel.value = deviceId;
+      }
+
+      /**
+       * Switches microphone mid-meeting.
+       *
+       * Restarts capture rather than swapping the track: MediaRecorder is bound
+       * to the stream it was constructed with, so a new device needs a new
+       * recorder. The socket stays up, so the conversation is not interrupted.
+       */
+      async function switchMic() {
+        const sel = document.getElementById('mic-picker');
+        if (!sel?.value) return;
+        localStorage.setItem('voai_mic_device', sel.value);
+        try {
+          audioProcessor?.stop?.();
+        } catch (e) {
+          console.warn('could not stop previous capture', e);
+        }
+        await startAudioCapture();
       }
 
       /** Tells the founder the meeting connection dropped, and tries to restore it. */
