@@ -139,6 +139,66 @@ this before adding a second document pipeline beside it.
 
 ---
 
+## 3 — Share reading material during the meeting
+
+**Status:** Backlog · **Raised:** 2026-08-17, from live testing
+
+The founder can attach an agenda before joining, but not hand anything to the
+team once the meeting is running. Real meetings do not work that way — the
+document that matters usually surfaces mid-conversation, because of something
+that was just said.
+
+### How this differs from the pre-meeting brief
+
+Not the same feature with a different entry point. The brief (§3.8–3.10 in
+FEATURES.md) is one per session, replaced on re-upload, and read as standing
+context on every turn. Mid-meeting material is a sequence of things handed over
+at points in time, and the differences all matter:
+
+- **Several, not one.** A meeting might see three documents. `meeting_briefs`
+  is keyed on `session_id` as a primary key precisely so a session has one
+  agenda; shared material needs its own table with ordering.
+- **When it arrived is part of the meaning.** A document handed over at turn ten
+  should not read as though the team had it from the start — that would make
+  their earlier answers look negligent, and would misrepresent what they knew.
+  Whatever is stored needs a position in the conversation, not just a timestamp.
+- **Someone has to notice it.** A file appearing silently in context is not
+  sharing. Handing something to a colleague mid-meeting produces a reaction:
+  they read it, and say something about it. That is a dispatch decision — which
+  agent responds, and whether it should preempt whatever was being discussed.
+- **It may not be a document.** In practice a founder mid-meeting is as likely
+  to paste a link, a number, or a paragraph of an email as to attach a file.
+
+### What is already known
+
+- Context injection has a per-turn cost. The brief is inlined into every
+  persona's prompt on every turn. Two or three shared documents on top of that
+  will not fit that pattern — this wants retrieval against what is being
+  discussed rather than wholesale injection, which the brain module's semantic
+  search already does for the founder's standing knowledge.
+- The transport exists. The media-coordinator WebSocket already carries binary
+  frames for audio and text frames for typed messages
+  (`apps/media-coordinator/src/index.ts`), so a third frame type is the natural
+  seam rather than a separate upload endpoint.
+- The transcript is the obvious place to show it. Shared material appearing as
+  an entry in the meeting transcript gives it a position in the conversation for
+  free, and gives the founder confirmation it landed.
+- File-format extraction is the same problem as §2 and should not be solved
+  twice.
+
+### Open questions
+
+- Does sharing interrupt? Handing over a document is a strong signal that the
+  subject has changed. Whether it stops an advisor mid-sentence, the way typing
+  and speaking already do, is a product call.
+- Does shared material persist past the meeting? A document that turns out to
+  matter belongs in the brain, not only in one session's history — possibly with
+  the founder confirming rather than automatically.
+- Is it visible to a human expert who joins later (§7)? Probably yes, and that
+  makes tenant isolation and retention a question rather than an afterthought.
+
+---
+
 ## Known loose ends
 
 Smaller items surfaced while building, recorded so they are not lost. None are
